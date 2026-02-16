@@ -8,7 +8,7 @@ class WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F2),
+      backgroundColor: const Color(0xFF121212),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -17,19 +17,19 @@ class WelcomePage extends StatelessWidget {
             const SizedBox(height: 40),
             Text(
               'Welcome to Totan AI',
-              style: GoogleFonts.roboto(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF333333),
+                color: Colors.white,
               ),
             ),
             const SizedBox(height: 20),
             Text(
               'Start chatting with Totan AI now.\nYou can ask me anything.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.roboto(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 16,
-                color: const Color(0xFF666666),
+                color: Colors.white70,
               ),
             ),
             const SizedBox(height: 60),
@@ -43,8 +43,8 @@ class WelcomePage extends StatelessWidget {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF333333),
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
                 ),
@@ -55,9 +55,9 @@ class WelcomePage extends StatelessWidget {
               ),
               child: Text(
                 'Get Started',
-                style: GoogleFonts.roboto(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 18,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),

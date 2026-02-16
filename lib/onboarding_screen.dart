@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:myapp/app_constants.dart';
+import 'package:myapp/login.dart' as separate_login;
+import 'package:myapp/register.dart' as separate_register;
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -188,7 +190,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 40),
           ElevatedButton(
-            onPressed: () => context.go('/chat'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const separate_login.LoginPage()),
+            ),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
               backgroundColor: Colors.white,
@@ -201,7 +207,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 20),
           OutlinedButton(
-            onPressed: () => context.go('/chat'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const separate_register.RegisterPage()),
+            ),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
               side: const BorderSide(color: Colors.white54),

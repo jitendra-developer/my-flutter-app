@@ -10,6 +10,7 @@ import 'app_constants.dart';
 import 'chat_page.dart';
 import 'chat_provider.dart';
 import 'onboarding_screen.dart';
+import 'welcome_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,8 +28,9 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final GoRouter router = GoRouter(
       routes: [
+        GoRoute(path: '/', builder: (context, state) => const WelcomePage()),
         GoRoute(
-          path: '/',
+          path: '/onboarding',
           builder: (context, state) => const OnboardingScreen(),
         ),
         GoRoute(path: '/chat', builder: (context, state) => const ChatPage()),
