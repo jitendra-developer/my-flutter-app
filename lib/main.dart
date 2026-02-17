@@ -6,17 +6,21 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:dart_openai/dart_openai.dart';
 
+import 'package:myapp/supabase_service.dart';
 import 'app_constants.dart';
 import 'chat_page.dart';
 import 'chat_provider.dart';
 import 'onboarding_screen.dart';
 import 'welcome_page.dart';
+import 'login.dart';
+import 'register.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   OpenAI.apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
   await Firebase.initializeApp();
+  await SupabaseService.initialize();
 
   runApp(const MyApp());
 }
@@ -34,6 +38,8 @@ class MyApp extends StatelessWidget {
           builder: (context, state) => const OnboardingScreen(),
         ),
         GoRoute(path: '/chat', builder: (context, state) => const ChatPage()),
+        GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
+        GoRoute(path: '/register', builder: (context, state) => const RegisterPage()),
       ],
     );
 
