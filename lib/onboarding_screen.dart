@@ -193,7 +193,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (context) => const separate_login.LoginPage()),
+                builder: (context) => const separate_login.LoginPage(),
+              ),
             ),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
@@ -210,7 +211,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (context) => const separate_register.RegisterPage()),
+                builder: (context) => const separate_register.RegisterPage(),
+              ),
             ),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),

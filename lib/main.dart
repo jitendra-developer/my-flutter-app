@@ -11,6 +11,7 @@ import 'app_constants.dart';
 import 'chat_page.dart';
 import 'chat_provider.dart';
 import 'onboarding_screen.dart';
+import 'screens/otp_verification_screen.dart';
 import 'welcome_page.dart';
 import 'login.dart';
 import 'register.dart';
@@ -39,7 +40,15 @@ class MyApp extends StatelessWidget {
         ),
         GoRoute(path: '/chat', builder: (context, state) => const ChatPage()),
         GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
-        GoRoute(path: '/register', builder: (context, state) => const RegisterPage()),
+        GoRoute(
+          path: '/register',
+          builder: (context, state) => const RegisterPage(),
+        ),
+        GoRoute(
+          path: '/otp-verification',
+          builder: (context, state) =>
+              OtpVerificationScreen(email: state.extra as String),
+        ),
       ],
     );
 

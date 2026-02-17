@@ -37,10 +37,11 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final AuthResponse res = await SupabaseService.client.auth.signInWithPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
+      final AuthResponse res = await SupabaseService.client.auth
+          .signInWithPassword(
+            email: _emailController.text,
+            password: _passwordController.text,
+          );
 
       if (res.user != null) {
         developer.log('Login successful for user: ${res.user!.id}');
@@ -71,7 +72,10 @@ class _LoginPageState extends State<LoginPage> {
     final snackBar = SnackBar(
       content: Row(
         children: [
-          Icon(isSuccess ? Icons.check_circle : Icons.error, color: Colors.white),
+          Icon(
+            isSuccess ? Icons.check_circle : Icons.error,
+            color: Colors.white,
+          ),
           const SizedBox(width: 8),
           Expanded(child: Text(message)),
         ],
@@ -171,7 +175,9 @@ class _LoginPageState extends State<LoginPage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    disabledBackgroundColor: const Color(0xFF2C2C2E).withOpacity(0.5),
+                    disabledBackgroundColor: const Color(
+                      0xFF2C2C2E,
+                    ).withOpacity(0.5),
                   ),
                   onPressed: _isLoading ? null : _login,
                   child: _isLoading
@@ -179,9 +185,10 @@ class _LoginPageState extends State<LoginPage> {
                       : const Text(
                           'Login',
                           style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                 ),
                 const SizedBox(height: 24),
@@ -208,13 +215,19 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 40),
                 const Row(
                   children: [
-                    Expanded(child: Divider(color: Colors.grey, thickness: 0.5)),
+                    Expanded(
+                      child: Divider(color: Colors.grey, thickness: 0.5),
+                    ),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Text('Continue With Accounts',
-                          style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      child: Text(
+                        'Continue With Accounts',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
                     ),
-                    Expanded(child: Divider(color: Colors.grey, thickness: 0.5)),
+                    Expanded(
+                      child: Divider(color: Colors.grey, thickness: 0.5),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 30),
@@ -223,7 +236,10 @@ class _LoginPageState extends State<LoginPage> {
                     Expanded(
                       child: _buildSocialButton(
                         label: 'GOOGLE',
-                        icon: const Icon(Icons.g_mobiledata_outlined, color: Colors.white),
+                        icon: const Icon(
+                          Icons.g_mobiledata_outlined,
+                          color: Colors.white,
+                        ),
                         backgroundColor: const Color(0xFF422825),
                         onPressed: () {},
                       ),
@@ -269,8 +285,10 @@ class _LoginPageState extends State<LoginPage> {
         hintStyle: const TextStyle(color: Colors.grey),
         prefixIcon: Icon(prefixIcon, color: Colors.grey),
         suffixIcon: suffixIcon,
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 18.0, horizontal: 20.0),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18.0,
+          horizontal: 20.0,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16.0),
           borderSide: BorderSide.none,
@@ -309,9 +327,7 @@ class _LoginPageState extends State<LoginPage> {
         foregroundColor: Colors.white,
         backgroundColor: backgroundColor,
         minimumSize: const Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         side: const BorderSide(color: Color(0xFF545458), width: 1),
       ),
       onPressed: onPressed,

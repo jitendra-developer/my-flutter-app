@@ -59,10 +59,13 @@ class _RegisterPageState extends State<RegisterPage> {
 
         developer.log('Profile created successfully.');
 
-        _showFeedback(true, 'Registration successful!');
+        _showFeedback(
+          true,
+          'Registration successful! Please verify your email.',
+        );
 
         if (mounted) {
-          context.go('/chat');
+          context.go('/otp-verification', extra: _emailController.text);
         }
       } else {
         developer.log('Sign up returned no user.');
@@ -87,7 +90,10 @@ class _RegisterPageState extends State<RegisterPage> {
     final snackBar = SnackBar(
       content: Row(
         children: [
-          Icon(isSuccess ? Icons.check_circle : Icons.error, color: Colors.white),
+          Icon(
+            isSuccess ? Icons.check_circle : Icons.error,
+            color: Colors.white,
+          ),
           const SizedBox(width: 8),
           Expanded(child: Text(message)),
         ],
@@ -213,7 +219,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    disabledBackgroundColor: const Color(0xFF2C2C2E).withOpacity(0.5),
+                    disabledBackgroundColor: const Color(
+                      0xFF2C2C2E,
+                    ).withOpacity(0.5),
                   ),
                   onPressed: _isLoading ? null : _register,
                   child: _isLoading
@@ -221,9 +229,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       : const Text(
                           'Register',
                           style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                 ),
                 const SizedBox(height: 24),
@@ -250,13 +259,19 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(height: 40),
                 const Row(
                   children: [
-                    Expanded(child: Divider(color: Colors.grey, thickness: 0.5)),
+                    Expanded(
+                      child: Divider(color: Colors.grey, thickness: 0.5),
+                    ),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Text('Continue With Accounts',
-                          style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      child: Text(
+                        'Continue With Accounts',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
                     ),
-                    Expanded(child: Divider(color: Colors.grey, thickness: 0.5)),
+                    Expanded(
+                      child: Divider(color: Colors.grey, thickness: 0.5),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 30),
@@ -265,7 +280,10 @@ class _RegisterPageState extends State<RegisterPage> {
                     Expanded(
                       child: _buildSocialButton(
                         label: 'GOOGLE',
-                        icon: const Icon(Icons.g_mobiledata_outlined, color: Colors.white),
+                        icon: const Icon(
+                          Icons.g_mobiledata_outlined,
+                          color: Colors.white,
+                        ),
                         backgroundColor: const Color(0xFF422825),
                         onPressed: () {},
                       ),
@@ -311,8 +329,10 @@ class _RegisterPageState extends State<RegisterPage> {
         hintStyle: const TextStyle(color: Colors.grey),
         prefixIcon: Icon(prefixIcon, color: Colors.grey),
         suffixIcon: suffixIcon,
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 18.0, horizontal: 20.0),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18.0,
+          horizontal: 20.0,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16.0),
           borderSide: BorderSide.none,
@@ -351,9 +371,7 @@ class _RegisterPageState extends State<RegisterPage> {
         foregroundColor: Colors.white,
         backgroundColor: backgroundColor,
         minimumSize: const Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         side: const BorderSide(color: Color(0xFF545458), width: 1),
       ),
       onPressed: onPressed,

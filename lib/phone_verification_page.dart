@@ -67,14 +67,14 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       } else {
-         developer.log('Sign up returned no user.');
+        developer.log('Sign up returned no user.');
         _showErrorSnackBar('Registration failed. Please try again.');
       }
     } on AuthException catch (e) {
       developer.log('AuthException: ${e.message}', error: e);
       _showErrorSnackBar('Error: ${e.message}');
     } catch (e) {
-       developer.log('Unexpected error: $e', error: e);
+      developer.log('Unexpected error: $e', error: e);
       _showErrorSnackBar('An unexpected error occurred.');
     }
 
@@ -87,22 +87,15 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
-   void _showSuccessSnackBar(String message) {
+  void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -154,9 +147,10 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
               : const Text(
                   'Verification',
                   style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
         ),
       ],
@@ -179,8 +173,10 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
         hintText: hintText,
         hintStyle: const TextStyle(color: Colors.grey),
         prefixIcon: Icon(prefixIcon, color: Colors.grey),
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 18.0, horizontal: 20.0),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18.0,
+          horizontal: 20.0,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16.0),
           borderSide: BorderSide.none,
@@ -197,16 +193,17 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
     );
   }
 
-  Widget _buildStyledButton(
-      {required String label, required VoidCallback? onPressed, required Widget child}) {
+  Widget _buildStyledButton({
+    required String label,
+    required VoidCallback? onPressed,
+    required Widget child,
+  }) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF2C2C2E),
         minimumSize: const Size(double.infinity, 56),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-         disabledBackgroundColor: const Color(0xFF2C2C2E).withOpacity(0.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        disabledBackgroundColor: const Color(0xFF2C2C2E).withOpacity(0.5),
       ),
       onPressed: onPressed,
       child: child,
