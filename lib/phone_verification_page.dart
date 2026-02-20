@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:developer' as developer;
 
-import 'package:myapp/supabase_service.dart';
-
 class PhoneVerificationPage extends StatefulWidget {
   final String email;
   final String password;
@@ -42,7 +40,7 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
 
     try {
       // 1. Sign up the user with email and password
-      final AuthResponse res = await SupabaseService.client.auth.signUp(
+      final AuthResponse res = await Supabase.instance.client.auth.signUp(
         email: widget.email,
         password: widget.password,
       );
@@ -51,7 +49,7 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
         developer.log('Sign up successful for user: ${res.user!.id}');
 
         // 2. Insert user details into the 'profiles' table
-        await SupabaseService.client.from('profiles').insert({
+        await Supabase.instance.client.from('profiles').insert({
           'id': res.user!.id,
           'name': widget.name,
           'username': widget.email.split('@')[0], // Simple username generation
