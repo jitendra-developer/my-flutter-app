@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'chat_provider.dart';
 
@@ -32,9 +33,43 @@ class ChatPage extends StatelessWidget {
           ),
         ),
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'logout') {
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: const Text('Log Out'),
+                      content: const Text('Are you sure you want to log out?'),
+                      actions: <Widget>[
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            await Supabase.instance.client.auth.signOut();
+                            // The GoRouter's refreshListenable will handle the navigation.
+                            Navigator.of(context).pop(); // Close the dialog
+                          },
+                          child: const Text('Yes'),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Text('Log out'),
+              ),
+            ],
             icon: const FaIcon(FontAwesomeIcons.ellipsis, color: Colors.white),
-            onPressed: () {},
           ),
         ],
       ),

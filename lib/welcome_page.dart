@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:myapp/onboarding_screen.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -35,12 +35,7 @@ class WelcomePage extends StatelessWidget {
             const SizedBox(height: 60),
             ElevatedButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const OnboardingScreen(),
-                  ),
-                );
+                context.go('/onboarding'); // CORRECTED to use go_router
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,

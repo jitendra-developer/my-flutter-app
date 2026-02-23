@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pinput/pinput.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-import 'package:myapp/utils/constants.dart';
+import 'package:myapp/utils.dart';
+import 'dart:developer' as developer;
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
-  const OtpVerificationScreen({Key? key, required this.email})
-    : super(key: key);
+  const OtpVerificationScreen({Key? key, required this.email}) : super(key: key);
 
   @override
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -15,33 +15,57 @@ class OtpVerificationScreen extends StatefulWidget {
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final TextEditingController _otpController = TextEditingController();
-  bool _isLoading = false;
+  bool _isVerifying = false;
+  bool _isResending = false;
 
-  void _verifyOtp() async {
-    setState(() {
-      _isLoading = true;
-    });
+  Future<void> _verifyOtp() async {
+    if (_otpController.text.length != 6) {
+      showFeedback(context, 'Please enter a 6-digit OTP.', isError: true);
+      return;
+    }
+    setState(() => _isVerifying = true);
 
     try {
-      final response = await supabase.auth.verifyOTP(
+      final response = await Supabase.instance.client.auth.verifyOTP(
         type: OtpType.signup,
-        token: _otpController.text,
+        token: _otpController.text.trim(),
         email: widget.email,
       );
+      // The GoRouter redirect logic in main.dart will handle navigation
+      // to the /chat screen automatically upon successful session creation.
+      developer.log('OTP verification successful: ${response.user?.id}');
+    } on AuthException catch (e) {
+      developer.log('OTP AuthException: ${e.message}', error: e);
+      showFeedback(context, e.message, isError: true);
+    } catch (e) {
+      developer.log('Unexpected OTP error: $e', error: e);
+      showFeedback(context, 'An unexpected error occurred.', isError: true);
+    }
 
-      if (response.session != null) {
-        Navigator.of(context).pushReplacementNamed('/chat');
-      } else {
-        context.showErrorSnackBar(message: 'Invalid OTP');
-      }
-    } on AuthException catch (error) {
-      context.showErrorSnackBar(message: error.message);
-    } catch (error) {
-      context.showErrorSnackBar(message: 'An unexpected error occurred.');
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+    if (mounted) {
+      setState(() => _isVerifying = false);
+    }
+  }
+
+  Future<void> _resendOtp() async {
+    setState(() => _isResending = true);
+
+    try {
+      await Supabase.instance.client.auth.resend(
+        type: OtpType.signup,
+        email: widget.email,
+      );
+      showFeedback(context, 'A new confirmation code has been sent to ${widget.email}.');
+    } on AuthException catch (e) {
+      developer.log('Resend OTP AuthException: ${e.message}', error: e);
+      showFeedback(context, e.message, isError: true);
+    } catch (e) {
+      developer.log('Unexpected Resend OTP error: $e', error: e);
+      showFeedback(context, 'An unexpected error occurred.', isError: true);
+    }
+
+    if (mounted) {
+      setState(() => _isResending = false);
     }
   }
 
@@ -51,7 +75,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.go('/register'), // Go back to registration
         ),
       ),
       body: Center(
@@ -73,9 +97,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 const SizedBox(height: 5),
                 Text(
                   widget.email,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 30),
                 Pinput(
@@ -83,19 +108,21 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   length: 6,
                   pinputAutovalidateMode: PinputAutovalidateMode.onSubmit,
                   showCursor: true,
+                  onCompleted: (_) => _verifyOtp(),
                 ),
                 const SizedBox(height: 30),
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _verifyOtp,
-                  child: _isLoading
+                  onPressed: _isVerifying ? null : _verifyOtp,
+                  child: _isVerifying
                       ? const CircularProgressIndicator()
                       : const Text('Verify'),
                 ),
                 TextButton(
-                  onPressed: () {
-                    // Resend OTP logic here
-                  },
-                  child: const Text('Send Again'),
+                  onPressed: _isResending ? null : _resendOtp,
+                  child: _isResending
+                      ? const SizedBox(
+                          height: 16, width: 16, child: CircularProgressIndicator())
+                      : const Text('Send Again'),
                 ),
               ],
             ),
