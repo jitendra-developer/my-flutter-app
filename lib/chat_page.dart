@@ -7,7 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'chat_provider.dart';
 
 class ChatPage extends StatelessWidget {
@@ -25,7 +26,7 @@ class ChatPage extends StatelessWidget {
           onPressed: () => context.go('/'),
         ),
         title: Text(
-          'Totan AI',
+          'Vakya AI',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -184,6 +185,89 @@ class ChatInputField extends StatefulWidget {
 
 class _ChatInputFieldState extends State<ChatInputField> {
   final _controller = TextEditingController();
+  final stt.SpeechToText _speechToText = stt.SpeechToText();
+  bool _isListening = false;
+  String _lastWords = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initSpeech();
+  }
+
+  void _initSpeech() async {
+    await _speechToText.initialize(
+      onStatus: (status) {
+        if (status == 'done' || status == 'notListening') {
+          _onSpeechEnd();
+        }
+      },
+      onError: (errorNotification) => print('error: $errorNotification'),
+    );
+  }
+
+  void _onSpeechEnd() {
+    if (_isListening) {
+      if (mounted) {
+        setState(() => _isListening = false);
+      } else {
+        _isListening = false;
+      }
+
+      if (_lastWords.isNotEmpty) {
+        final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+        chatProvider.sendMessage(_lastWords);
+        _lastWords = '';
+        _controller.clear();
+      }
+    }
+  }
+
+  Future<void> _toggleListening(ChatProvider chatProvider) async {
+    if (_isListening) {
+      // End listening immediately
+      _speechToText.stop();
+      if (chatProvider.isResponding) {
+        chatProvider.stopResponding();
+      }
+      _onSpeechEnd();
+    } else {
+      // Start listening
+      var status = await Permission.microphone.status;
+      if (!status.isGranted) {
+        status = await Permission.microphone.request();
+      }
+
+      if (status != PermissionStatus.granted) {
+        return;
+      }
+
+      // Stop any AI response before we start listening
+      if (chatProvider.isResponding) {
+        chatProvider.stopResponding();
+      }
+
+      setState(() {
+        _isListening = true;
+        _lastWords = '';
+        _controller.clear();
+      });
+
+      _speechToText.listen(
+        onResult: (result) {
+          setState(() {
+            _lastWords = result.recognizedWords;
+          });
+        },
+        listenOptions: stt.SpeechListenOptions(
+          partialResults: true,
+          cancelOnError: false,
+          listenMode: stt.ListenMode.dictation,
+        ),
+        pauseFor: const Duration(seconds: 3),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -214,6 +298,15 @@ class _ChatInputFieldState extends State<ChatInputField> {
               Expanded(
                 child: TextField(
                   controller: _controller,
+                  onChanged: (text) {
+                    if (_isListening) {
+                      _speechToText.stop();
+                      _lastWords = ''; // discard spoken words
+                      setState(() {
+                        _isListening = false;
+                      });
+                    }
+                  },
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: 'Send a message',
@@ -228,7 +321,24 @@ class _ChatInputFieldState extends State<ChatInputField> {
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
+              if (_isListening)
+                TextButton(
+                  onPressed: () => _toggleListening(chatProvider),
+                  child: const Text(
+                    'End',
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.graphic_eq, color: Colors.white),
+                  onPressed: () => _toggleListening(chatProvider),
+                ),
               IconButton(
                 icon: const FaIcon(
                   FontAwesomeIcons.paperPlane,
@@ -236,8 +346,10 @@ class _ChatInputFieldState extends State<ChatInputField> {
                 ),
                 onPressed: () {
                   if (_controller.text.isNotEmpty) {
+                    // Send manually and reset listening state text if needed
                     chatProvider.sendMessage(_controller.text);
                     _controller.clear();
+                    _lastWords = '';
                   }
                 },
               ),

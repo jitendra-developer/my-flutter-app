@@ -14,6 +14,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer' as developer;
 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
 // GoRouter refresh stream to rebuild the router when auth state changes
 class GoRouterRefreshStream extends ChangeNotifier {
   late final StreamSubscription<AuthState> _subscription;
@@ -42,6 +45,20 @@ void main() async {
       url: dotenv.env['SUPABASE_URL']!,
       anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
     );
+    
+    // Check for fresh install or app update
+    final prefs = await SharedPreferences.getInstance();
+    final packageInfo = await PackageInfo.fromPlatform();
+    final String currentVersion = packageInfo.version;
+    final String? storedVersion = prefs.getString('app_version');
+
+    if (storedVersion == null || storedVersion != currentVersion) {
+      // It's a fresh install or an update. Force logout to require re-authentication.
+      await Supabase.instance.client.auth.signOut();
+      await prefs.setString('app_version', currentVersion);
+      developer.log('App version changed or first launch. Forced logout.');
+    }
+
   } catch (e) {
     developer.log(
       'Error during initialization: $e\n'
@@ -163,7 +180,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Totan AI',
+      title: 'Vakya AI',
       theme: ThemeData.dark().copyWith(
         primaryColor: Colors.deepPurple,
         scaffoldBackgroundColor: const Color(0xFF121212),

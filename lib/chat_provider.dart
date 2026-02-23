@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 // import 'package:dart_openai/dart_openai.dart';
-import 'dart:developer' as developer;
 
 class ChatProvider with ChangeNotifier {
   final List<Message> _messages = [];
