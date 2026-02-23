@@ -8,8 +8,8 @@ class GoogleESign {
     try {
       await supabase.auth.signInWithOAuth(
         OAuthProvider.google,
-        authScreenLaunchMode: LaunchMode.inAppWebView,
-        redirectTo: 'io.supabase.flutter://login-callback/',
+        authScreenLaunchMode: LaunchMode.externalApplication,
+        redirectTo: 'com.example.myapp://login-callback/',
       );
     } catch (e) {
       // This will catch any errors during the launch of the webview.
