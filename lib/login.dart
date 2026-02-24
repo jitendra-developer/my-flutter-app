@@ -42,7 +42,11 @@ class _LoginPageState extends State<LoginPage> {
     } on AuthException catch (e) {
       developer.log('Login AuthException: ${e.message}', error: e);
       if (e.message.contains('Invalid login credentials')) {
-        showFeedback(context, 'User does not exist or password was incorrect.', isError: true);
+        showFeedback(
+          context,
+          'User does not exist or password was incorrect.',
+          isError: true,
+        );
       } else {
         showFeedback(context, e.message, isError: true);
       }
@@ -101,7 +105,8 @@ class _LoginPageState extends State<LoginPage> {
                     icon: Icons.email_outlined,
                     hint: 'Enter Your Email',
                     validator: (value) {
-                      if (value == null || value.isEmpty) return 'Please enter an email';
+                      if (value == null || value.isEmpty)
+                        return 'Please enter an email';
                       if (!RegExp(r'^\S+@\S+\.\S+$').hasMatch(value)) {
                         return 'Please enter a valid email address';
                       }
@@ -115,7 +120,8 @@ class _LoginPageState extends State<LoginPage> {
                     hint: 'Password',
                     isPassword: true,
                     validator: (value) {
-                      if (value == null || value.isEmpty) return 'Please enter a password';
+                      if (value == null || value.isEmpty)
+                        return 'Please enter a password';
                       return null;
                     },
                   ),
@@ -150,7 +156,10 @@ class _LoginPageState extends State<LoginPage> {
       validator: validator,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.plusJakartaSans(color: Colors.white38, fontSize: 14),
+        hintStyle: GoogleFonts.plusJakartaSans(
+          color: Colors.white38,
+          fontSize: 14,
+        ),
         prefixIcon: Icon(icon, color: Colors.white38),
         filled: true,
         fillColor: const Color(0xFF2C2C2C),
@@ -178,7 +187,10 @@ class _LoginPageState extends State<LoginPage> {
       ),
       child: Text(
         text,
-        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 16),
+        style: GoogleFonts.plusJakartaSans(
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+        ),
       ),
     );
   }
@@ -254,11 +266,19 @@ class _LoginPageState extends State<LoginPage> {
           if (type == 'google') {
             await _googleESign.signInWithGoogle();
           } else if (type == 'facebook') {
-            showFeedback(context, 'Facebook Sign-In is not implemented yet.', isError: true);
+            showFeedback(
+              context,
+              'Facebook Sign-In is not implemented yet.',
+              isError: true,
+            );
           }
         } catch (e) {
           developer.log('$type Sign-In failed: $e', error: e);
-          showFeedback(context, '$type Sign-In failed. Please try again.', isError: true);
+          showFeedback(
+            context,
+            '$type Sign-In failed. Please try again.',
+            isError: true,
+          );
         }
         if (mounted) {
           setState(() => _isLoading = false);

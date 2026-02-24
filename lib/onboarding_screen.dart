@@ -61,10 +61,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         curve: Curves.easeInOut,
                       );
                     },
-                    icon: const Icon(
-                      Icons.arrow_back,
-                      color: Colors.white,
-                    ),
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
                   )
                 else
                   const SizedBox(width: 48), // Spacer for balance
@@ -76,10 +73,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         curve: Curves.easeInOut,
                       );
                     },
-                    icon: const Icon(
-                      Icons.arrow_forward,
-                      color: Colors.white,
-                    ),
+                    icon: const Icon(Icons.arrow_forward, color: Colors.white),
                   )
                 else
                   ElevatedButton(

@@ -8,6 +8,8 @@
 	<string>This app needs access to the microphone to allow you to talk to the AI assistant.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>This app requires speech recognition to transcribe your voice into text for the AI.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to your photo library to attach and analyze images using AI.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

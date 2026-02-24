@@ -9,7 +9,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+
 import 'chat_provider.dart';
+import 'history_page.dart';
 
 class ChatPage extends StatelessWidget {
   const ChatPage({super.key});
@@ -34,6 +38,21 @@ class ChatPage extends StatelessWidget {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add, color: Colors.white),
+            onPressed: () {
+              Provider.of<ChatProvider>(context, listen: false).createNewChat();
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.history, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HistoryPage()),
+              );
+            },
+          ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'logout') {
@@ -84,13 +103,14 @@ class ChatPage extends StatelessWidget {
                   itemCount: provider.messages.length,
                   itemBuilder: (context, index) {
                     final message = provider.messages[index];
-                    return MessageBubble(message: message);
+                    final isLast = index == provider.messages.length - 1;
+                    return MessageBubble(message: message, isLast: isLast);
                   },
                 );
               },
             ),
           ),
-          const ChatInputField(),
+          ChatInputField(key: ChatInputField.globalKey),
         ],
       ),
     );
@@ -99,85 +119,173 @@ class ChatPage extends StatelessWidget {
 
 class MessageBubble extends StatelessWidget {
   final Message message;
+  final bool isLast;
 
-  const MessageBubble({super.key, required this.message});
+  const MessageBubble({super.key, required this.message, this.isLast = false});
+
+  void _showOptionsSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.white),
+                title: const Text(
+                  'Edit',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Provider.of<ChatProvider>(context, listen: false).editMessage(
+                    message,
+                    (text) {
+                      ChatInputField.globalKey.currentState?.setText(text);
+                    },
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.restore, color: Colors.white),
+                title: const Text(
+                  'Roll Back',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Provider.of<ChatProvider>(
+                    context,
+                    listen: false,
+                  ).rollbackMessage(message);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: message.isUser
-          ? MainAxisAlignment.end
-          : MainAxisAlignment.start,
-      children: [
-        if (!message.isUser)
-          const CircleAvatar(
-            backgroundImage: AssetImage('assets/images/logo.png'),
-            radius: 20,
-          ),
-        Flexible(
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: message.isUser
-                  ? Colors.deepPurple
-                  : const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                MarkdownBody(
-                  data: message.text,
-                  styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
-                      .copyWith(
-                        p: Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.copyWith(color: Colors.white),
-                      ),
+    return GestureDetector(
+      onLongPress: message.isUser ? () => _showOptionsSheet(context) : null,
+      child: Row(
+        mainAxisAlignment: message.isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+        children: [
+          Flexible(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.70,
+              ),
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: message.isUser
+                      ? Colors.deepPurple
+                      : const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                if (!message.isUser)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      IconButton(
-                        icon: const FaIcon(
-                          FontAwesomeIcons.copy,
-                          size: 16,
-                          color: Colors.white54,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (message.imagePath != null &&
+                        message.imagePath!.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            File(message.imagePath!),
+                            width: 200,
+                            fit: BoxFit.cover,
+                          ),
                         ),
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: message.text));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Copied to clipboard'),
+                      ),
+                    MarkdownBody(
+                      data: message.text,
+                      styleSheet:
+                          MarkdownStyleSheet.fromTheme(
+                            Theme.of(context),
+                          ).copyWith(
+                            p: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.white,
                             ),
-                          );
-                        },
+                          ),
+                    ),
+                    if (!message.isUser)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            icon: const FaIcon(
+                              FontAwesomeIcons.copy,
+                              size: 16,
+                              color: Colors.white54,
+                            ),
+                            onPressed: () {
+                              Clipboard.setData(
+                                ClipboardData(text: message.text),
+                              );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Copied to clipboard'),
+                                ),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const FaIcon(
+                              FontAwesomeIcons.share,
+                              size: 16,
+                              color: Colors.white54,
+                            ),
+                            onPressed: () {
+                              Share.share(message.text);
+                            },
+                          ),
+                          if (isLast &&
+                              !message.isUser &&
+                              !Provider.of<ChatProvider>(context).isResponding)
+                            IconButton(
+                              icon: const FaIcon(
+                                FontAwesomeIcons.rotateRight,
+                                size: 16,
+                                color: Colors.white54,
+                              ),
+                              onPressed: () {
+                                Provider.of<ChatProvider>(
+                                  context,
+                                  listen: false,
+                                ).regenerateResponse();
+                              },
+                            ),
+                        ],
                       ),
-                      IconButton(
-                        icon: const FaIcon(
-                          FontAwesomeIcons.share,
-                          size: 16,
-                          color: Colors.white54,
-                        ),
-                        onPressed: () {
-                          Share.share(message.text);
-                        },
-                      ),
-                    ],
-                  ),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 class ChatInputField extends StatefulWidget {
   const ChatInputField({super.key});
+  static final GlobalKey<_ChatInputFieldState> globalKey =
+      GlobalKey<_ChatInputFieldState>();
 
   @override
   State<ChatInputField> createState() => _ChatInputFieldState();
@@ -188,6 +296,11 @@ class _ChatInputFieldState extends State<ChatInputField> {
   final stt.SpeechToText _speechToText = stt.SpeechToText();
   bool _isListening = false;
   String _lastWords = '';
+  String? _selectedImagePath;
+
+  void setText(String text) {
+    _controller.text = text;
+  }
 
   @override
   void initState() {
@@ -214,10 +327,15 @@ class _ChatInputFieldState extends State<ChatInputField> {
         _isListening = false;
       }
 
-      if (_lastWords.isNotEmpty) {
+      if (_lastWords.isNotEmpty || _selectedImagePath != null) {
         final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-        chatProvider.sendMessage(_lastWords);
+        chatProvider.sendMessage(
+          _lastWords,
+          isVoiceInput: true,
+          imagePath: _selectedImagePath,
+        );
         _lastWords = '';
+        _selectedImagePath = null;
         _controller.clear();
       }
     }
@@ -284,17 +402,67 @@ class _ChatInputFieldState extends State<ChatInputField> {
                 chatProvider.stopResponding();
               },
               child: const Text('Stop Responding'),
-            )
-          else if (chatProvider.messages.isNotEmpty &&
-              !chatProvider.messages.last.isUser)
-            ElevatedButton(
-              onPressed: () {
-                chatProvider.regenerateResponse();
-              },
-              child: const Text('Regenerate Response'),
+            ),
+          if (_selectedImagePath != null)
+            Stack(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  height: 100,
+                  width: 100,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    image: DecorationImage(
+                      image: FileImage(File(_selectedImagePath!)),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedImagePath = null;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           Row(
             children: [
+              IconButton(
+                icon: const Icon(Icons.image, color: Colors.white70),
+                onPressed: () async {
+                  var status = await Permission.photos.status;
+                  if (!status.isGranted) {
+                    await Permission.photos.request();
+                  }
+                  final ImagePicker picker = ImagePicker();
+                  final XFile? image = await picker.pickImage(
+                    source: ImageSource.gallery,
+                  );
+                  if (image != null) {
+                    setState(() {
+                      _selectedImagePath = image.path;
+                    });
+                  }
+                },
+              ),
               Expanded(
                 child: TextField(
                   controller: _controller,
@@ -345,10 +513,19 @@ class _ChatInputFieldState extends State<ChatInputField> {
                   color: Colors.white,
                 ),
                 onPressed: () {
-                  if (_controller.text.isNotEmpty) {
-                    // Send manually and reset listening state text if needed
-                    chatProvider.sendMessage(_controller.text);
-                    _controller.clear();
+                  if (_controller.text.isNotEmpty ||
+                      _selectedImagePath != null) {
+                    final text = _controller.text.trim();
+                    if (text.isNotEmpty || _selectedImagePath != null) {
+                      chatProvider.sendMessage(
+                        text,
+                        imagePath: _selectedImagePath,
+                      );
+                      _controller.clear();
+                      setState(() {
+                        _selectedImagePath = null;
+                      });
+                    }
                     _lastWords = '';
                   }
                 },

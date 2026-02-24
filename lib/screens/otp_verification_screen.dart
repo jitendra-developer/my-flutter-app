@@ -55,7 +55,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         type: OtpType.signup,
         email: widget.email,
       );
-      showFeedback(context, 'A new confirmation code has been sent to ${widget.email}.');
+      showFeedback(
+        context,
+        'A new confirmation code has been sent to ${widget.email}.',
+      );
     } on AuthException catch (e) {
       developer.log('Resend OTP AuthException: ${e.message}', error: e);
       showFeedback(context, e.message, isError: true);
@@ -97,10 +100,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 const SizedBox(height: 5),
                 Text(
                   widget.email,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 30),
                 Pinput(
@@ -121,7 +123,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   onPressed: _isResending ? null : _resendOtp,
                   child: _isResending
                       ? const SizedBox(
-                          height: 16, width: 16, child: CircularProgressIndicator())
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(),
+                        )
                       : const Text('Send Again'),
                 ),
               ],
