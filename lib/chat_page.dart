@@ -10,10 +10,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 
 import 'chat_provider.dart';
 import 'history_page.dart';
+import 'screens/pre_prompts_page.dart';
 
 class ChatPage extends StatelessWidget {
   const ChatPage({super.key});
@@ -81,9 +83,18 @@ class ChatPage extends StatelessWidget {
                     );
                   },
                 );
+              } else if (value == 'pre_prompts') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PrePromptsPage()),
+                );
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'pre_prompts',
+                child: Text('Pre Prompts'),
+              ),
               const PopupMenuItem<String>(
                 value: 'logout',
                 child: Text('Log out'),
@@ -211,6 +222,31 @@ class MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ),
+                    if (message.documentName != null &&
+                        message.documentName!.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.description, color: Colors.blueAccent),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                message.documentName!,
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     MarkdownBody(
                       data: message.text,
                       styleSheet:
@@ -297,6 +333,8 @@ class _ChatInputFieldState extends State<ChatInputField> {
   bool _isListening = false;
   String _lastWords = '';
   String? _selectedImagePath;
+  String? _selectedDocumentPath;
+  String? _selectedDocumentName;
 
   void setText(String text) {
     _controller.text = text;
@@ -327,15 +365,19 @@ class _ChatInputFieldState extends State<ChatInputField> {
         _isListening = false;
       }
 
-      if (_lastWords.isNotEmpty || _selectedImagePath != null) {
+      if (_lastWords.isNotEmpty || _selectedImagePath != null || _selectedDocumentPath != null) {
         final chatProvider = Provider.of<ChatProvider>(context, listen: false);
         chatProvider.sendMessage(
           _lastWords,
           isVoiceInput: true,
           imagePath: _selectedImagePath,
+          documentPath: _selectedDocumentPath,
+          documentName: _selectedDocumentName,
         );
         _lastWords = '';
         _selectedImagePath = null;
+        _selectedDocumentPath = null;
+        _selectedDocumentName = null;
         _controller.clear();
       }
     }
@@ -382,7 +424,7 @@ class _ChatInputFieldState extends State<ChatInputField> {
           cancelOnError: false,
           listenMode: stt.ListenMode.dictation,
         ),
-        pauseFor: const Duration(seconds: 3),
+        pauseFor: const Duration(seconds: 5), // Increased to give the user more thinking time
       );
     }
   }
@@ -443,6 +485,39 @@ class _ChatInputFieldState extends State<ChatInputField> {
                 ),
               ],
             ),
+          if (_selectedDocumentName != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C2C2C),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blueAccent),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.description, color: Colors.blueAccent),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _selectedDocumentName!,
+                      style: const TextStyle(color: Colors.white),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                    onPressed: () {
+                      setState(() {
+                        _selectedDocumentPath = null;
+                        _selectedDocumentName = null;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
           Row(
             children: [
               IconButton(
@@ -459,6 +534,25 @@ class _ChatInputFieldState extends State<ChatInputField> {
                   if (image != null) {
                     setState(() {
                       _selectedImagePath = image.path;
+                      _selectedDocumentPath = null;
+                      _selectedDocumentName = null;
+                    });
+                  }
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.attach_file, color: Colors.white70),
+                onPressed: () async {
+                  FilePickerResult? result = await FilePicker.platform.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: ['pdf', 'txt'],
+                  );
+
+                  if (result != null && result.files.single.path != null) {
+                    setState(() {
+                      _selectedDocumentPath = result.files.single.path;
+                      _selectedDocumentName = result.files.single.name;
+                      _selectedImagePath = null;
                     });
                   }
                 },
@@ -514,16 +608,20 @@ class _ChatInputFieldState extends State<ChatInputField> {
                 ),
                 onPressed: () {
                   if (_controller.text.isNotEmpty ||
-                      _selectedImagePath != null) {
+                      _selectedImagePath != null || _selectedDocumentPath != null) {
                     final text = _controller.text.trim();
-                    if (text.isNotEmpty || _selectedImagePath != null) {
+                    if (text.isNotEmpty || _selectedImagePath != null || _selectedDocumentPath != null) {
                       chatProvider.sendMessage(
                         text,
                         imagePath: _selectedImagePath,
+                        documentPath: _selectedDocumentPath,
+                        documentName: _selectedDocumentName,
                       );
                       _controller.clear();
                       setState(() {
                         _selectedImagePath = null;
+                        _selectedDocumentPath = null;
+                        _selectedDocumentName = null;
                       });
                     }
                     _lastWords = '';

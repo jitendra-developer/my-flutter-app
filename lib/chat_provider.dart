@@ -4,7 +4,8 @@ import 'package:dart_openai/dart_openai.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'dart:io';
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class ChatProvider with ChangeNotifier {
   List<Message> _messages = [];
@@ -20,42 +21,90 @@ class ChatProvider with ChangeNotifier {
 
   List<ChatSession> get chatHistory => _chatHistory;
 
+  final _supabase = Supabase.instance.client;
+  
   ChatProvider() {
     _openAI = OpenAI.instance;
     _initTts();
-    _loadChats();
+    _initAuthListener();
+  }
+
+  void _initAuthListener() {
+    _supabase.auth.onAuthStateChange.listen((data) {
+      if (data.session != null) {
+        _loadChats();
+      } else {
+        _chatHistory.clear();
+        _messages.clear();
+        _currentSessionId = null;
+        notifyListeners();
+      }
+    });
   }
 
   Future<void> _loadChats() async {
-    final prefs = await SharedPreferences.getInstance();
-    final historyJson = prefs.getString('chat_history');
-    if (historyJson != null) {
-      final List decoded = jsonDecode(historyJson);
-      _chatHistory = decoded.map((e) => ChatSession.fromJson(e)).toList();
+    final currentUser = _supabase.auth.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      final response = await _supabase
+          .from('chat_sessions')
+          .select()
+          .eq('user_id', currentUser.id)
+          .order('created_at', ascending: false);
+
+      final List<dynamic> data = response;
+      _chatHistory = data.map((e) => ChatSession.fromJson(e)).toList();
+      _chatHistory.removeWhere((s) => s.messages.length < 2);
+
+      if (_chatHistory.isEmpty) {
+        createNewChat();
+      } else {
+        _currentSessionId = _chatHistory.first.id;
+        _messages = List.from(_chatHistory.first.messages);
+      }
+      notifyListeners();
+    } catch (e) {
+      developer.log('Error loading chats from Supabase', error: e);
     }
-    if (_chatHistory.isEmpty) {
-      createNewChat();
-    } else {
-      _currentSessionId = _chatHistory.first.id;
-      _messages = List.from(_chatHistory.first.messages);
-    }
-    notifyListeners();
   }
 
   Future<void> _saveChats() async {
+    final currentUser = _supabase.auth.currentUser;
+    if (currentUser == null) return;
+
     if (_currentSessionId != null) {
       final index = _chatHistory.indexWhere((s) => s.id == _currentSessionId);
       if (index != -1) {
         _chatHistory[index].messages = List.from(_messages);
       }
     }
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(_chatHistory.map((e) => e.toJson()).toList());
-    await prefs.setString('chat_history', encoded);
+
+    final chatsToSave = _chatHistory.where((e) => e.messages.length >= 2).toList();
+    
+    try {
+      for (final chat in chatsToSave) {
+        await _supabase.from('chat_sessions').upsert({
+          'id': chat.id,
+          'user_id': currentUser.id,
+          'title': chat.title,
+          'messages': chat.messages.map((m) => m.toJson()).toList(),
+          // created_at is handled by default on insert
+        });
+      }
+    } catch (e) {
+      developer.log('Error saving chats to Supabase', error: e);
+    }
   }
 
   void createNewChat() {
     if (_isResponding) stopResponding();
+
+    _chatHistory.removeWhere((s) => s.messages.length < 2 && s.id != _currentSessionId);
+    if (_currentSessionId != null && _messages.length < 2) {
+      _chatHistory.removeWhere((s) => s.id == _currentSessionId);
+    }
+
     final newSession = ChatSession(
       id: DateTime.now().toIso8601String(),
       title: 'New Chat',
@@ -70,13 +119,25 @@ class ChatProvider with ChangeNotifier {
 
   void switchChat(String sessionId) {
     if (_isResponding) stopResponding();
-    final session = _chatHistory.firstWhere((s) => s.id == sessionId);
+
+    if (_currentSessionId != null) {
+      if (_messages.length < 2) {
+        _chatHistory.removeWhere((s) => s.id == _currentSessionId);
+      } else {
+        final index = _chatHistory.indexWhere((s) => s.id == _currentSessionId);
+        if (index != -1) {
+          _chatHistory[index].messages = List.from(_messages);
+        }
+      }
+    }
+
+    final session = _chatHistory.firstWhere((s) => s.id == sessionId, orElse: () => _chatHistory.first);
     _currentSessionId = session.id;
     _messages = List.from(session.messages);
     notifyListeners();
   }
 
-  void deleteChat(String sessionId) {
+  Future<void> deleteChat(String sessionId) async {
     _chatHistory.removeWhere((s) => s.id == sessionId);
     if (_currentSessionId == sessionId) {
       if (_chatHistory.isNotEmpty) {
@@ -85,14 +146,20 @@ class ChatProvider with ChangeNotifier {
         createNewChat();
       }
     } else {
-      _saveChats();
       notifyListeners();
+    }
+    
+    try {
+      await _supabase.from('chat_sessions').delete().eq('id', sessionId);
+    } catch (e) {
+      developer.log('Failed to delete chat from Supabase', error: e);
     }
   }
 
-  Future<void> _generateChatTitle(String prompt) async {
-    if (_currentSessionId == null) return;
+  Future<void> _generateChatTitle() async {
+    if (_currentSessionId == null || _messages.length < 2) return;
     try {
+      final contextText = _messages.take(2).map((m) => "${m.isUser ? 'User' : 'AI'}: ${m.text}").join('\n');
       final response = await _openAI!.chat.create(
         model: 'gpt-3.5-turbo',
         messages: [
@@ -100,7 +167,7 @@ class ChatProvider with ChangeNotifier {
             role: OpenAIChatMessageRole.user,
             content: [
               OpenAIChatCompletionChoiceMessageContentItemModel.text(
-                "Summarize this in 3 to 5 words: $prompt",
+                "Generate a clear, brief 3 to 5 word title for this conversation. Return ONLY the title, no quotes or extra text.\n\nConversation:\n$contextText",
               ),
             ],
           ),
@@ -170,8 +237,28 @@ class ChatProvider with ChangeNotifier {
   }
 
   // Builds the list of messages to be sent to the OpenAI API
-  List<OpenAIChatCompletionChoiceMessageModel> _buildMessageHistory() {
-    return _messages.map((message) {
+  List<OpenAIChatCompletionChoiceMessageModel> _buildMessageHistory(
+      {bool forVoice = false}) {
+    final List<OpenAIChatCompletionChoiceMessageModel> apiMessages = [];
+
+    // System prompt for persona and concise responses
+    String systemPromptText =
+        "You are Vakya AI, a helpful, friendly, and knowledgeable assistant. Provide accurate and concise answers. Keep responses well-structured but do not use complex markdown that is difficult to speak aloud.";
+    if (forVoice) {
+      systemPromptText +=
+          " Your responses are being spoken via Text-to-Speech, so write like you are having a spoken conversation. Use brief sentences, natural pauses, and avoid code blocks, tables, or long lists unless explicitly requested.";
+    }
+
+    apiMessages.add(
+      OpenAIChatCompletionChoiceMessageModel(
+        role: OpenAIChatMessageRole.system,
+        content: [
+          OpenAIChatCompletionChoiceMessageContentItemModel.text(systemPromptText)
+        ],
+      ),
+    );
+
+    apiMessages.addAll(_messages.map((message) {
       final contentItems =
           <OpenAIChatCompletionChoiceMessageContentItemModel>[];
 
@@ -199,20 +286,54 @@ class ChatProvider with ChangeNotifier {
             ? OpenAIChatMessageRole.user
             : OpenAIChatMessageRole.assistant,
       );
-    }).toList();
+    }));
+
+    return apiMessages;
   }
 
   Future<void> sendMessage(
     String text, {
     bool isVoiceInput = false,
     String? imagePath,
+    String? documentPath,
+    String? documentName,
   }) async {
-    final userMessage = Message(text: text, isUser: true, imagePath: imagePath);
-    addMessage(userMessage);
+    String finalPromptText = text;
 
-    if (_messages.length == 1 && text.isNotEmpty) {
-      _generateChatTitle(text);
+    // Check if there is a document to parse
+    if (documentPath != null && documentPath.isNotEmpty) {
+      try {
+        String extractedText = '';
+        final file = File(documentPath);
+        
+        if (documentName?.toLowerCase().endsWith('.pdf') == true) {
+          final PdfDocument document = PdfDocument(inputBytes: file.readAsBytesSync());
+          extractedText = PdfTextExtractor(document).extractText();
+          document.dispose();
+        } else if (documentName?.toLowerCase().endsWith('.txt') == true) {
+          extractedText = file.readAsStringSync();
+        }
+
+        if (extractedText.isNotEmpty) {
+          if (finalPromptText.isEmpty) {
+            finalPromptText = "Please analyze this document and tell me what is inside, and give some insights:\n\n=== Document Content ===\n$extractedText";
+          } else {
+            finalPromptText = "$finalPromptText\n\n=== Document Content ===\n$extractedText";
+          }
+        }
+      } catch (e) {
+        developer.log('Failed to extract text from document', error: e);
+      }
     }
+
+    final userMessage = Message(
+      text: finalPromptText,
+      isUser: true,
+      imagePath: imagePath,
+      documentPath: documentPath,
+      documentName: documentName,
+    );
+    addMessage(userMessage);
 
     startResponding();
 
@@ -224,9 +345,9 @@ class ChatProvider with ChangeNotifier {
     try {
       final stream = _openAI!.chat.createStream(
         model: 'gpt-4o',
-        temperature: 0.9,
+        temperature: 0.7, // Lowered temperature for more focused responses
         maxTokens: 1000,
-        messages: _buildMessageHistory(),
+        messages: _buildMessageHistory(forVoice: isVoiceInput),
       );
 
       String fullResponse = '';
@@ -275,6 +396,10 @@ class ChatProvider with ChangeNotifier {
       }
 
       _saveChats(); // Save final AI response
+
+      if (_messages.length == 2) {
+        _generateChatTitle();
+      }
     } catch (e, s) {
       developer.log(
         'Error sending message to OpenAI',
@@ -371,7 +496,7 @@ class ChatSession {
       id: json['id'] as String,
       title: json['title'] as String,
       messages: (json['messages'] as List)
-          .map((m) => Message.fromJson(m))
+          .map((m) => Message.fromJson(Map<String, dynamic>.from(m)))
           .toList(),
     );
   }
@@ -381,13 +506,23 @@ class Message {
   final String text;
   final bool isUser;
   final String? imagePath;
+  final String? documentPath;
+  final String? documentName;
 
-  Message({required this.text, required this.isUser, this.imagePath});
+  Message({
+    required this.text,
+    required this.isUser,
+    this.imagePath,
+    this.documentPath,
+    this.documentName,
+  });
 
   Map<String, dynamic> toJson() => {
     'text': text,
     'isUser': isUser,
     'imagePath': imagePath,
+    'documentPath': documentPath,
+    'documentName': documentName,
   };
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -395,6 +530,8 @@ class Message {
       text: json['text'] as String,
       isUser: json['isUser'] as bool,
       imagePath: json['imagePath'] as String?,
+      documentPath: json['documentPath'] as String?,
+      documentName: json['documentName'] as String?,
     );
   }
 }
