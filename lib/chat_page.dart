@@ -43,7 +43,10 @@ class ChatPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white),
             onPressed: () {
-              Provider.of<ChatProvider>(context, listen: false).createNewChat();
+              final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+              chatProvider.setContinuousVoiceMode(false);
+              ChatInputField.globalKey.currentState?.stopListening();
+              chatProvider.createNewChat();
             },
           ),
           IconButton(
@@ -109,6 +112,19 @@ class ChatPage extends StatelessWidget {
           Expanded(
             child: Consumer<ChatProvider>(
               builder: (context, provider, child) {
+                if (provider.messages.isEmpty) {
+                  final userName = Supabase.instance.client.auth.currentUser?.userMetadata?['full_name']?.split(' ').first ?? 'User';
+                  return Center(
+                    child: Text(
+                      'Welcome Again $userName',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white54,
+                      ),
+                    ),
+                  );
+                }
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: provider.messages.length,
@@ -215,11 +231,24 @@ class MessageBubble extends StatelessWidget {
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.file(
-                            File(message.imagePath!),
-                            width: 200,
-                            fit: BoxFit.cover,
-                          ),
+                          child: message.imagePath!.startsWith('http')
+                              ? Image.network(
+                                  message.imagePath!,
+                                  width: 250,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return const Padding(
+                                      padding: EdgeInsets.all(20.0),
+                                      child: CircularProgressIndicator(color: Colors.white),
+                                    );
+                                  },
+                                )
+                              : Image.file(
+                                  File(message.imagePath!),
+                                  width: 200,
+                                  fit: BoxFit.cover,
+                                ),
                         ),
                       ),
                     if (message.documentName != null &&
@@ -248,7 +277,7 @@ class MessageBubble extends StatelessWidget {
                         ),
                       ),
                     MarkdownBody(
-                      data: message.text,
+                      data: message.text.split('\n\n=== Document Content ===').first,
                       styleSheet:
                           MarkdownStyleSheet.fromTheme(
                             Theme.of(context),
@@ -340,6 +369,18 @@ class _ChatInputFieldState extends State<ChatInputField> {
     _controller.text = text;
   }
 
+  void stopListening() {
+    if (_isListening) {
+      _speechToText.stop();
+      _lastWords = ''; 
+      if (mounted) {
+        setState(() {
+          _isListening = false;
+        });
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -379,54 +420,56 @@ class _ChatInputFieldState extends State<ChatInputField> {
         _selectedDocumentPath = null;
         _selectedDocumentName = null;
         _controller.clear();
+      } else {
+        final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+        if (chatProvider.isContinuousVoiceMode && !chatProvider.isResponding) {
+          startListening();
+        }
       }
     }
   }
 
-  Future<void> _toggleListening(ChatProvider chatProvider) async {
-    if (_isListening) {
-      // End listening immediately
-      _speechToText.stop();
-      if (chatProvider.isResponding) {
-        chatProvider.stopResponding();
-      }
-      _onSpeechEnd();
-    } else {
-      // Start listening
-      var status = await Permission.microphone.status;
-      if (!status.isGranted) {
-        status = await Permission.microphone.request();
-      }
+  Future<void> startListening() async {
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    if (!chatProvider.isContinuousVoiceMode) return;
+    if (_isListening) return;
 
-      if (status != PermissionStatus.granted) {
-        return;
-      }
+    var status = await Permission.microphone.status;
+    if (!status.isGranted) {
+      status = await Permission.microphone.request();
+    }
 
-      // Stop any AI response before we start listening
-      if (chatProvider.isResponding) {
-        chatProvider.stopResponding();
-      }
+    if (status != PermissionStatus.granted) {
+      chatProvider.setContinuousVoiceMode(false);
+      return;
+    }
 
+    if (chatProvider.isResponding) {
+      chatProvider.stopResponding();
+    }
+
+    if (mounted) {
       setState(() {
         _isListening = true;
         _lastWords = '';
         _controller.clear();
       });
+    }
 
-      _speechToText.listen(
-        onResult: (result) {
+    _speechToText.listen(
+      onResult: (result) {
+        if (mounted) {
           setState(() {
             _lastWords = result.recognizedWords;
           });
-        },
-        listenOptions: stt.SpeechListenOptions(
-          partialResults: true,
-          cancelOnError: false,
-          listenMode: stt.ListenMode.dictation,
-        ),
-        pauseFor: const Duration(seconds: 5), // Increased to give the user more thinking time
-      );
-    }
+        }
+      },
+      listenOptions: stt.SpeechListenOptions(
+        partialResults: true,
+        cancelOnError: true,
+      ),
+      pauseFor: const Duration(seconds: 5),
+    );
   }
 
   @override
@@ -561,7 +604,17 @@ class _ChatInputFieldState extends State<ChatInputField> {
                 child: TextField(
                   controller: _controller,
                   onChanged: (text) {
-                    if (_isListening) {
+                    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+                    if (chatProvider.isContinuousVoiceMode) {
+                      chatProvider.setContinuousVoiceMode(false);
+                      if (_isListening) {
+                        _speechToText.stop();
+                        _lastWords = '';
+                        setState(() {
+                          _isListening = false;
+                        });
+                      }
+                    } else if (_isListening) {
                       _speechToText.stop();
                       _lastWords = ''; // discard spoken words
                       setState(() {
@@ -584,9 +637,16 @@ class _ChatInputFieldState extends State<ChatInputField> {
                 ),
               ),
               const SizedBox(width: 8),
-              if (_isListening)
+              if (chatProvider.isContinuousVoiceMode)
                 TextButton(
-                  onPressed: () => _toggleListening(chatProvider),
+                  onPressed: () {
+                    chatProvider.setContinuousVoiceMode(false);
+                    _speechToText.stop();
+                    if (chatProvider.isResponding) chatProvider.stopResponding();
+                    setState(() {
+                      _isListening = false;
+                    });
+                  },
                   child: const Text(
                     'End',
                     style: TextStyle(
@@ -599,7 +659,10 @@ class _ChatInputFieldState extends State<ChatInputField> {
               else
                 IconButton(
                   icon: const Icon(Icons.graphic_eq, color: Colors.white),
-                  onPressed: () => _toggleListening(chatProvider),
+                  onPressed: () {
+                    chatProvider.setContinuousVoiceMode(true);
+                    startListening();
+                  },
                 ),
               IconButton(
                 icon: const FaIcon(

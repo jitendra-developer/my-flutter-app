@@ -6,6 +6,9 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:uuid/uuid.dart';
+
+import 'chat_page.dart';
 
 class ChatProvider with ChangeNotifier {
   List<Message> _messages = [];
@@ -15,6 +18,15 @@ class ChatProvider with ChangeNotifier {
   bool _isSpeaking = false;
   final List<String> _ttsQueue = [];
   bool _isProcessingQueue = false;
+
+  bool _isContinuousVoiceMode = false;
+  bool get isContinuousVoiceMode => _isContinuousVoiceMode;
+  bool _isStreamingText = false;
+
+  void setContinuousVoiceMode(bool value) {
+    _isContinuousVoiceMode = value;
+    notifyListeners();
+  }
 
   List<ChatSession> _chatHistory = [];
   String? _currentSessionId;
@@ -57,12 +69,7 @@ class ChatProvider with ChangeNotifier {
       _chatHistory = data.map((e) => ChatSession.fromJson(e)).toList();
       _chatHistory.removeWhere((s) => s.messages.length < 2);
 
-      if (_chatHistory.isEmpty) {
-        createNewChat();
-      } else {
-        _currentSessionId = _chatHistory.first.id;
-        _messages = List.from(_chatHistory.first.messages);
-      }
+      createNewChat();
       notifyListeners();
     } catch (e) {
       developer.log('Error loading chats from Supabase', error: e);
@@ -106,7 +113,7 @@ class ChatProvider with ChangeNotifier {
     }
 
     final newSession = ChatSession(
-      id: DateTime.now().toIso8601String(),
+      id: const Uuid().v4(),
       title: 'New Chat',
       messages: [],
     );
@@ -212,6 +219,7 @@ class ChatProvider with ChangeNotifier {
       }
     }
     _isProcessingQueue = false;
+    _checkResponseComplete();
   }
 
   List<Message> get messages => _messages;
@@ -224,11 +232,13 @@ class ChatProvider with ChangeNotifier {
 
   void startResponding() {
     _isResponding = true;
+    _isStreamingText = true;
     notifyListeners();
   }
 
   void stopResponding() {
     _isResponding = false;
+    _isStreamingText = false;
     _ttsQueue.clear();
     _isProcessingQueue = false;
     _flutterTts.stop();
@@ -291,6 +301,44 @@ class ChatProvider with ChangeNotifier {
     return apiMessages;
   }
 
+  Future<bool> _isImageGenerationIntent(String prompt, String? imagePath) async {
+    if (imagePath != null && prompt.toLowerCase().contains('modify')) return true;
+    
+    // Quick keyword fallback
+    final lowerPrompt = prompt.toLowerCase();
+    if (lowerPrompt.startsWith('generate an image') || 
+        lowerPrompt.startsWith('draw a') || 
+        lowerPrompt.startsWith('create an image')) {
+      return true;
+    }
+
+    try {
+      final response = await _openAI!.chat.create(
+        model: 'gpt-3.5-turbo',
+        messages: [
+          OpenAIChatCompletionChoiceMessageModel(
+            role: OpenAIChatMessageRole.system,
+            content: [
+              OpenAIChatCompletionChoiceMessageContentItemModel.text(
+                "You are an intent classifier. Does the user want to generate, draw, or create a new original image based on their prompt? "
+                "Respond strictly with YES or NO. Do not explain. If they are just asking a question about an image, reply NO."
+              )
+            ],
+          ),
+          OpenAIChatCompletionChoiceMessageModel(
+            role: OpenAIChatMessageRole.user,
+            content: [OpenAIChatCompletionChoiceMessageContentItemModel.text(prompt)],
+          ),
+        ],
+        temperature: 0.0,
+      );
+      final text = response.choices.first.message.content?.first?.text?.trim().toUpperCase();
+      return text != null && text.contains('YES');
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<void> sendMessage(
     String text, {
     bool isVoiceInput = false,
@@ -337,65 +385,95 @@ class ChatProvider with ChangeNotifier {
 
     startResponding();
 
-    // Create an empty AI message that we will stream into
+    // Show a temporary loading indicator for processing intent or generation
     final aiMessageIndex = _messages.length;
-    _messages.add(Message(text: '', isUser: false));
+    _messages.add(Message(text: '...', isUser: false));
     notifyListeners();
 
+    bool isImageRequest = await _isImageGenerationIntent(text, imagePath);
+
     try {
-      final stream = _openAI!.chat.createStream(
-        model: 'gpt-4o',
-        temperature: 0.7, // Lowered temperature for more focused responses
-        maxTokens: 1000,
-        messages: _buildMessageHistory(forVoice: isVoiceInput),
-      );
+      if (isImageRequest) {
+        // DALL-E 3 Image Generation or Modification
+        _messages[aiMessageIndex] = Message(
+          text: 'Generating image... Please wait.',
+          isUser: false,
+        );
+        notifyListeners();
 
-      String fullResponse = '';
-      String currentSentenceBuffer = '';
+        final response = await _openAI!.image.create(
+          prompt: finalPromptText,
+          model: "dall-e-3",
+          n: 1,
+          size: OpenAIImageSize.size1024,
+          responseFormat: OpenAIImageResponseFormat.url,
+        );
 
-      await for (final chunk in stream) {
-        if (!_isResponding) break; // Early stop check
+        final imageUrl = response.data.first.url;
 
-        final content = chunk.choices.first.delta.content;
+        _messages[aiMessageIndex] = Message(
+          text: 'Here is your generated image:',
+          isUser: false,
+          imagePath: imageUrl, // Storing remote URL instead of local path for simplicity in display
+        );
+        notifyListeners();
 
-        if (content != null && content.isNotEmpty) {
-          final textPart = content.first?.text ?? '';
-          fullResponse += textPart;
+        if (isVoiceInput) {
+           _ttsQueue.add('I have generated the image for you.');
+           _processTtsQueue();
+        }
 
-          // Update UI
-          _messages[aiMessageIndex] = Message(
-            text: fullResponse,
-            isUser: false,
-          );
-          notifyListeners();
+      } else {
+        // Standard Text/Vision Completion via GPT-4o
+        final stream = _openAI!.chat.createStream(
+          model: 'gpt-4o',
+          temperature: 0.7,
+          maxTokens: 1000,
+          messages: _buildMessageHistory(forVoice: isVoiceInput),
+        );
 
-          // TTS streaming logc using basic punctuation breaks
-          if (isVoiceInput) {
-            currentSentenceBuffer += textPart;
-            final splitPattern = RegExp(r'(?<=[.!?])\s+|\n');
-            if (currentSentenceBuffer.contains(splitPattern)) {
-              final parts = currentSentenceBuffer.split(splitPattern);
-              for (int i = 0; i < parts.length - 1; i++) {
-                if (parts[i].trim().isNotEmpty) {
-                  _ttsQueue.add(parts[i].trim());
+        String fullResponse = '';
+        String currentSentenceBuffer = '';
+
+        await for (final chunk in stream) {
+          if (!_isResponding) break;
+
+          final content = chunk.choices.first.delta.content;
+
+          if (content != null && content.isNotEmpty) {
+            final textPart = content.first?.text ?? '';
+            fullResponse += textPart;
+
+            _messages[aiMessageIndex] = Message(
+              text: fullResponse,
+              isUser: false,
+            );
+            notifyListeners();
+
+            if (isVoiceInput) {
+              currentSentenceBuffer += textPart;
+              final splitPattern = RegExp(r'(?<=[.!?])\s+|\n');
+              if (currentSentenceBuffer.contains(splitPattern)) {
+                final parts = currentSentenceBuffer.split(splitPattern);
+                for (int i = 0; i < parts.length - 1; i++) {
+                  if (parts[i].trim().isNotEmpty) {
+                    _ttsQueue.add(parts[i].trim());
+                  }
                 }
+                currentSentenceBuffer = parts.last;
+                _processTtsQueue();
               }
-              currentSentenceBuffer = parts.last;
-              _processTtsQueue();
             }
           }
         }
+
+        if (isVoiceInput && _isResponding && currentSentenceBuffer.trim().isNotEmpty) {
+          _ttsQueue.add(currentSentenceBuffer.trim());
+          _processTtsQueue();
+        }
       }
 
-      // Speak any remaining loose text at the end of the stream
-      if (isVoiceInput &&
-          _isResponding &&
-          currentSentenceBuffer.trim().isNotEmpty) {
-        _ttsQueue.add(currentSentenceBuffer.trim());
-        _processTtsQueue();
-      }
-
-      _saveChats(); // Save final AI response
+      _saveChats();
 
       if (_messages.length == 2) {
         _generateChatTitle();
@@ -412,12 +490,30 @@ class ChatProvider with ChangeNotifier {
         isUser: false,
       );
       notifyListeners();
+    } finally {
+      _isStreamingText = false;
+      _checkResponseComplete();
     }
+  }
 
-    // Don't stopResponding if we are just waiting for TTS to finish naturally,
-    // but we do flip the boolean to allow the user to send another message visually.
-    _isResponding = false;
-    notifyListeners();
+  void _checkResponseComplete() {
+    if (!_isStreamingText && _ttsQueue.isEmpty && !_isSpeaking) {
+      if (_isResponding) {
+        _isResponding = false;
+        notifyListeners();
+      }
+      if (_isContinuousVoiceMode) {
+        _triggerStartListening();
+      }
+    }
+  }
+
+  void _triggerStartListening() {
+    Future.microtask(() {
+      if (ChatInputField.globalKey.currentState != null) {
+        ChatInputField.globalKey.currentState!.startListening();
+      }
+    });
   }
 
   Future<void> regenerateResponse() async {
