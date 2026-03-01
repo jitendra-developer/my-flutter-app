@@ -1,7 +1,7 @@
-# Project Blueprint - Totan AI Chat App
+# Project Blueprint - VAKYA AI Chat App
 
 ## Overview
-Totan is a modern AI chat application built with Flutter and Supabase. It features a polished onboarding experience, secure authentication, and an interactive chat interface.
+Vakya AI is a modern AI chat application built with Flutter and Supabase, functioning primarily as an expert Prompt Generator for AI video and image tools, while still retaining general AI assistant capabilities for exploration and answering questions. It features a polished onboarding experience, secure authentication, and an interactive chat interface.
 
 ## Design & Style
 - **Theming**: Adheres to Material Design 3 principles with a **Modern Dark** aesthetic.
