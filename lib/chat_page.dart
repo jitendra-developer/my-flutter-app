@@ -20,16 +20,135 @@ import 'screens/pre_prompts_page.dart';
 class ChatPage extends StatelessWidget {
   const ChatPage({super.key});
 
+  Widget _buildDrawer(BuildContext context) {
+    final chatProvider = Provider.of<ChatProvider>(context);
+    final user = Supabase.instance.client.auth.currentUser;
+    final userName = user?.userMetadata?['full_name'] ?? 'User Name';
+
+    final recentChats = chatProvider.chatHistory.take(2).toList();
+    
+    return Drawer(
+      backgroundColor: const Color(0xFF1E1E1E),
+      child: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.add_circle_outline, color: Colors.white),
+              title: const Text('New Chat', style: TextStyle(color: Colors.white, fontSize: 16)),
+              onTap: () {
+                Navigator.pop(context);
+                final cp = Provider.of<ChatProvider>(context, listen: false);
+                cp.setContinuousVoiceMode(false);
+                ChatInputField.globalKey.currentState?.stopListening();
+                cp.createNewChat();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.list_alt, color: Colors.white),
+              title: const Text('Pre Prompts', style: TextStyle(color: Colors.white, fontSize: 16)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PrePromptsPage()),
+                );
+              },
+            ),
+            const Divider(color: Colors.white24),
+            ListTile(
+              leading: const Icon(Icons.history, color: Colors.white),
+              title: const Text('Recent Chats', style: TextStyle(color: Colors.white, fontSize: 16)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HistoryPage()),
+                );
+              },
+            ),
+            if (recentChats.isNotEmpty) ...[
+              ...recentChats.map((chat) {
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 48.0),
+                  title: Text(
+                    chat.title,
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Provider.of<ChatProvider>(context, listen: false).switchChat(chat.id);
+                  },
+                );
+              }),
+            ],
+            const Spacer(),
+            const Divider(color: Colors.white24),
+            ListTile(
+              leading: const Icon(Icons.account_circle, color: Colors.white),
+              title: Text(userName, style: const TextStyle(color: Colors.white, fontSize: 16)),
+              onTap: () {
+                // Future profile customization will be here
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.redAccent),
+              title: const Text('Log Out', style: TextStyle(color: Colors.redAccent, fontSize: 16)),
+              onTap: () {
+                Navigator.pop(context);
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      backgroundColor: const Color(0xFF2C2C2C),
+                      title: const Text('Log Out', style: TextStyle(color: Colors.white)),
+                      content: const Text('Are you sure you want to log out?', style: TextStyle(color: Colors.white70)),
+                      actions: <Widget>[
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            await Supabase.instance.client.auth.signOut();
+                            if (context.mounted) {
+                              Navigator.of(context).pop();
+                            }
+                          },
+                          child: const Text('Yes', style: TextStyle(color: Colors.redAccent)),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
+      drawer: _buildDrawer(context),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const FaIcon(FontAwesomeIcons.chevronLeft, color: Colors.white),
-          onPressed: () => context.go('/'),
+        leading: Builder(
+          builder: (context) {
+            return IconButton(
+              icon: const Icon(Icons.menu, color: Colors.white),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+            );
+          },
         ),
         title: Text(
           'Vakya AI',
@@ -39,73 +158,6 @@ class ChatPage extends StatelessWidget {
             color: Colors.white,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.white),
-            onPressed: () {
-              final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-              chatProvider.setContinuousVoiceMode(false);
-              ChatInputField.globalKey.currentState?.stopListening();
-              chatProvider.createNewChat();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.history, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const HistoryPage()),
-              );
-            },
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'logout') {
-                showDialog(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      title: const Text('Log Out'),
-                      content: const Text('Are you sure you want to log out?'),
-                      actions: <Widget>[
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            await Supabase.instance.client.auth.signOut();
-                            // The GoRouter's refreshListenable will handle the navigation.
-                            Navigator.of(context).pop(); // Close the dialog
-                          },
-                          child: const Text('Yes'),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              } else if (value == 'pre_prompts') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PrePromptsPage()),
-                );
-              }
-            },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'pre_prompts',
-                child: Text('Pre Prompts'),
-              ),
-              const PopupMenuItem<String>(
-                value: 'logout',
-                child: Text('Log out'),
-              ),
-            ],
-            icon: const FaIcon(FontAwesomeIcons.ellipsis, color: Colors.white),
-          ),
-        ],
       ),
       body: Column(
         children: [
