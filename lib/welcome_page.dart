@@ -16,7 +16,7 @@ class WelcomePage extends StatelessWidget {
             Image.asset('assets/images/logo.png', width: 150, height: 150),
             const SizedBox(height: 40),
             Text(
-              'Welcome to Totan AI',
+              'Welcome to Vakya AI',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
@@ -25,7 +25,7 @@ class WelcomePage extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'Start chatting with Totan AI now.\nYou can ask me anything.',
+              'Start chatting with Vakya AI now.\nYou can ask me anything.',
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 16,

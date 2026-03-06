@@ -25,7 +25,10 @@ class _AuthHubPageState extends State<AuthHubPage> {
           child: _isLoading
               ? const CircularProgressIndicator(color: Colors.white)
               : Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 20,
+                  ),
                   padding: const EdgeInsets.all(24.0),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1E1E1E),
@@ -106,9 +109,7 @@ class _AuthHubPageState extends State<AuthHubPage> {
         minimumSize: const Size(double.infinity, 56),
         backgroundColor: const Color(0xFF2C2C2C),
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(30),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
       ),
       child: Text(
         text,
@@ -169,10 +170,18 @@ class _AuthHubPageState extends State<AuthHubPage> {
           if (type == 'google') {
             await _googleESign.signInWithGoogle();
           } else if (type == 'facebook') {
-            showFeedback(context, 'Facebook Sign-In is not implemented yet.', isError: true);
+            showFeedback(
+              context,
+              'Facebook Sign-In is not implemented yet.',
+              isError: true,
+            );
           }
         } catch (e) {
-          showFeedback(context, '$type Sign-In failed. Please try again.', isError: true);
+          showFeedback(
+            context,
+            '$type Sign-In failed. Please try again.',
+            isError: true,
+          );
         }
         if (mounted) {
           setState(() => _isLoading = false);

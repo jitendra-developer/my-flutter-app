@@ -13,6 +13,10 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer' as developer;
+import 'package:dart_openai/dart_openai.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 // GoRouter refresh stream to rebuild the router when auth state changes
 class GoRouterRefreshStream extends ChangeNotifier {
@@ -42,6 +46,27 @@ void main() async {
       url: dotenv.env['SUPABASE_URL']!,
       anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
     );
+
+    // Initialize OpenAI API Key
+    final openApiKey = dotenv.env['OPENAI_API_KEY'];
+    if (openApiKey != null && openApiKey.isNotEmpty) {
+      OpenAI.apiKey = openApiKey;
+    } else {
+      developer.log('OPENAI_API_KEY is missing from .env file.', level: 1000);
+    }
+
+    // Check for fresh install or app update
+    final prefs = await SharedPreferences.getInstance();
+    final packageInfo = await PackageInfo.fromPlatform();
+    final String currentVersion = packageInfo.version;
+    final String? storedVersion = prefs.getString('app_version');
+
+    if (storedVersion == null || storedVersion != currentVersion) {
+      // It's a fresh install or an update. Force logout to require re-authentication.
+      await Supabase.instance.client.auth.signOut();
+      await prefs.setString('app_version', currentVersion);
+      developer.log('App version changed or first launch. Forced logout.');
+    }
   } catch (e) {
     developer.log(
       'Error during initialization: $e\n'
@@ -86,7 +111,6 @@ class InitializationErrorApp extends StatelessWidget {
   }
 }
 
-
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -107,11 +131,23 @@ class _MyAppState extends State<MyApp> {
       initialLocation: '/',
       routes: [
         GoRoute(path: '/', builder: (context, state) => const WelcomePage()),
-        GoRoute(path: '/onboarding', builder: (context, state) => const OnboardingScreen()),
+        GoRoute(
+          path: '/onboarding',
+          builder: (context, state) => const OnboardingScreen(),
+        ),
         GoRoute(path: '/chat', builder: (context, state) => const ChatPage()),
-        GoRoute(path: '/login', builder: (context, state) => const AuthHubPage()),
-        GoRoute(path: '/email-login', builder: (context, state) => const LoginPage()),
-        GoRoute(path: '/register', builder: (context, state) => const RegisterPage()),
+        GoRoute(
+          path: '/login',
+          builder: (context, state) => const AuthHubPage(),
+        ),
+        GoRoute(
+          path: '/email-login',
+          builder: (context, state) => const LoginPage(),
+        ),
+        GoRoute(
+          path: '/register',
+          builder: (context, state) => const RegisterPage(),
+        ),
         GoRoute(
           path: '/otp-verification',
           builder: (context, state) {
@@ -127,14 +163,18 @@ class _MyAppState extends State<MyApp> {
       redirect: (context, state) {
         final session = Supabase.instance.client.auth.currentSession;
         final hasSession = session != null;
-        developer.log('Router Redirect: User has session: $hasSession, Current Location: ${state.uri}');
+        developer.log(
+          'Router Redirect: User has session: $hasSession, Current Location: ${state.uri}',
+        );
 
-        final isAuthRoute = state.uri.path == '/login' ||
+        final isAuthRoute =
+            state.uri.path == '/login' ||
             state.uri.path == '/email-login' ||
             state.uri.path == '/register' ||
             state.uri.path.startsWith('/otp-verification');
 
-        final isPublicRoute = state.uri.path == '/' || state.uri.path == '/onboarding';
+        final isPublicRoute =
+            state.uri.path == '/' || state.uri.path == '/onboarding';
 
         // SCENARIO 1: USER IS NOT LOGGED IN
         if (!hasSession) {
@@ -149,7 +189,9 @@ class _MyAppState extends State<MyApp> {
         // SCENARIO 2: USER IS LOGGED IN
         // If the logged-in user is on an auth page or a public intro page, they should be moved to the chat.
         if (isAuthRoute || isPublicRoute) {
-          developer.log('User is logged in and on an auth/public route, redirecting to /chat');
+          developer.log(
+            'User is logged in and on an auth/public route, redirecting to /chat',
+          );
           return '/chat';
         }
 
@@ -163,7 +205,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Totan AI',
+      title: 'Vakya AI',
       theme: ThemeData.dark().copyWith(
         primaryColor: Colors.deepPurple,
         scaffoldBackgroundColor: const Color(0xFF121212),
