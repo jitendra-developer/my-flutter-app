@@ -16,6 +16,14 @@ class PrePromptsPage extends StatefulWidget {
 class _PrePromptsPageState extends State<PrePromptsPage> {
   String _selectedCategory = 'Discover';
   String _selectedSort = 'Trending';
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   final List<String> _categories = [
     'Discover',
@@ -127,29 +135,77 @@ class _PrePromptsPageState extends State<PrePromptsPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Filter prompts based on selected category
-    final filteredPrompts = _selectedCategory == 'Discover'
+    // 1. Filter by category
+    final categoryFiltered = _selectedCategory == 'Discover'
         ? _allPrompts
         : _allPrompts.where((p) => p['category'] == _selectedCategory).toList();
 
+    // 2. Filter by search query
+    final query = _searchController.text.toLowerCase().trim();
+    final filteredPrompts = query.isEmpty
+        ? categoryFiltered
+        : categoryFiltered.where((p) {
+            final titleUrl = (p['title'] as String).toLowerCase();
+            final catStr = (p['category'] as String).toLowerCase();
+            final variants = p['variants'] as List<dynamic>;
+            final textStr = variants.join(' ').toLowerCase();
+
+            return titleUrl.contains(query) ||
+                   catStr.contains(query) ||
+                   textStr.contains(query);
+          }).toList();
+
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: const Color(0xFF13131A),
       appBar: AppBar(
-        title: Text(
-          'Pre Prompts',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Search categories or prompts...',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  border: InputBorder.none,
+                ),
+                onChanged: (_) {
+                  // Trigger rebuild to update search results
+                  setState(() {});
+                },
+              )
+            : Text(
+                'Pre Prompts',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const FaIcon(FontAwesomeIcons.chevronLeft, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          onPressed: () {
+            if (_isSearching) {
+              setState(() {
+                _isSearching = false;
+                _searchController.clear();
+              });
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
         actions: [
+          if (!_isSearching)
+            IconButton(
+              icon: const Icon(Icons.search, color: Colors.white),
+              onPressed: () {
+                setState(() {
+                  _isSearching = true;
+                });
+              },
+            ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.tune, color: Colors.white),
             color: const Color(0xFF2C2C2C),
@@ -211,26 +267,42 @@ class _PrePromptsPageState extends State<PrePromptsPage> {
             child: Row(
               children: _categories.map((category) {
                 final isSelected = _selectedCategory == category;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: ChoiceChip(
-                    label: Text(category),
-                    selected: isSelected,
-                    selectedColor: Colors.deepPurple,
-                    backgroundColor: const Color(0xFF2C2C2C),
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : Colors.white70,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                final isDiscover = category == 'Discover';
+                
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedCategory = category;
+                    });
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 12.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 12.0),
+                    decoration: BoxDecoration(
+                      gradient: isSelected
+                          ? const LinearGradient(colors: [Color(0xFF3B2E7E), Color(0xFF4A60D4)])
+                          : null,
+                      color: isSelected ? null : const Color(0xFF1C1C24),
+                      borderRadius: BorderRadius.circular(12),
+                      border: isSelected ? null : Border.all(color: Colors.white10),
                     ),
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          _selectedCategory = category;
-                        });
-                      }
-                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isDiscover) ...[
+                          const Icon(Icons.auto_fix_high, size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(
+                          category,
+                          style: GoogleFonts.plusJakartaSans(
+                            color: isSelected ? Colors.white : const Color(0xFF8F8F99),
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }).toList(),
@@ -244,8 +316,8 @@ class _PrePromptsPageState extends State<PrePromptsPage> {
             child: filteredPrompts.isEmpty
                 ? const Center(
                     child: Text(
-                      'No prompts found for this category.',
-                      style: TextStyle(color: Colors.white54),
+                      'No prompts or categories found.',
+                      style: TextStyle(color: Colors.white54, fontSize: 16),
                     ),
                   )
                 : MasonryGridView.count(

@@ -207,17 +207,18 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp.router(
       title: 'Vakya Pro',
       theme: ThemeData.dark().copyWith(
-        primaryColor: Colors.deepPurple,
-        scaffoldBackgroundColor: const Color(0xFF121212),
+        primaryColor: const Color(0xFF4A60D4),
+        scaffoldBackgroundColor: const Color(0xFF13131A), // New dark blue-black background
         colorScheme: const ColorScheme.dark(
-          primary: Colors.deepPurple,
-          secondary: Colors.deepPurpleAccent,
+          primary: Color(0xFF4A60D4),
+          secondary: Color(0xFF3B2E7E),
           error: Colors.redAccent,
         ),
       ),
       builder: (context, child) {
         return Container(
-          color: const Color(0xFF121212), // Background for the pillarboxes on wide screens (matches scaffoldBackgroundColor)
+          color: const Color(0xFF13131A), // Background for the pillarboxes on wide screens
+
           alignment: Alignment.center,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
