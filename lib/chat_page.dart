@@ -151,7 +151,7 @@ class ChatPage extends StatelessWidget {
           },
         ),
         title: Text(
-          'Vakya AI',
+          'Vakya Pro',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 24,
             fontWeight: FontWeight.bold,

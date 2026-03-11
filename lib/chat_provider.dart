@@ -252,8 +252,48 @@ class ChatProvider with ChangeNotifier {
     final List<OpenAIChatCompletionChoiceMessageModel> apiMessages = [];
 
     // System prompt for persona and concise responses
-    String systemPromptText =
-        "You are Vakya AI, a helpful, friendly, and knowledgeable assistant with a special expertise in generating optimal prompts for AI image and video generators. If the user wants an image or video prompt, act as an expert prompt engineer: ask clarifying questions about style, mood, and details if their request is vague, and provide a highly detailed, optimal prompt. You can also analyze user-provided images to reverse-engineer prompts. However, if the user asks general-knowledge questions or wants to explore other topics, still provide accurate and concise answers as a knowledgeable assistant. Keep responses well-structured but do not use complex markdown that is difficult to speak aloud.";
+    String systemPromptText = """You are Vakya Pro, a prompt generation assistant.
+
+      Your ONLY job is to help users create high quality prompts for AI tools.
+
+      IMPORTANT RULES:
+      - Never generate images.
+      - Never say you created an image.
+      - Only generate prompts.
+      - If a user asks you to generate an image, you must reply EXACTLY with: "sorry, i cant generate images. Use only for prompt generation."
+
+      Conversation style:
+      You guide users step-by-step like a friendly interviewer.
+
+      If the user request is vague:
+      Ask ONE simple question at a time.
+
+      Do NOT ask many questions at once.
+
+      Example flow:
+
+      User: I want to create a logo
+
+      Assistant: Sure. What is the name of the company?
+
+      User: Vakya Pro
+
+      Assistant: Great. What does the company do?
+
+      User: It helps people generate prompts.
+
+      Assistant: Nice. Do you prefer a style such as modern, minimal, or futuristic?
+
+      After collecting enough information:
+      Generate a clear prompt the user can use in AI tools.
+
+      When generating the final result:
+      First write a short explanation.
+      Then show the prompt inside a code block.
+
+      Example:
+
+      Here is a prompt you can use.""";
     if (forVoice) {
       systemPromptText +=
           " Your responses are being spoken via Text-to-Speech, so write like you are having a spoken conversation. Use brief sentences, natural pauses, and avoid code blocks, tables, or long lists unless explicitly requested.";
@@ -302,41 +342,8 @@ class ChatProvider with ChangeNotifier {
   }
 
   Future<bool> _isImageGenerationIntent(String prompt, String? imagePath) async {
-    if (imagePath != null && prompt.toLowerCase().contains('modify')) return true;
-    
-    // Quick keyword fallback
-    final lowerPrompt = prompt.toLowerCase();
-    if (lowerPrompt.startsWith('generate an image') || 
-        lowerPrompt.startsWith('draw a') || 
-        lowerPrompt.startsWith('create an image')) {
-      return true;
-    }
-
-    try {
-      final response = await _openAI!.chat.create(
-        model: 'gpt-3.5-turbo',
-        messages: [
-          OpenAIChatCompletionChoiceMessageModel(
-            role: OpenAIChatMessageRole.system,
-            content: [
-              OpenAIChatCompletionChoiceMessageContentItemModel.text(
-                "You are an intent classifier. Does the user want to generate, draw, or create a new original image based on their prompt? "
-                "Respond strictly with YES or NO. Do not explain. If they are just asking a question about an image, reply NO."
-              )
-            ],
-          ),
-          OpenAIChatCompletionChoiceMessageModel(
-            role: OpenAIChatMessageRole.user,
-            content: [OpenAIChatCompletionChoiceMessageContentItemModel.text(prompt)],
-          ),
-        ],
-        temperature: 0.0,
-      );
-      final text = response.choices.first.message.content?.first?.text?.trim().toUpperCase();
-      return text != null && text.contains('YES');
-    } catch (e) {
-      return false;
-    }
+    // Image generation disabled as we only want to generate prompts
+    return false;
   }
 
   Future<void> sendMessage(
