@@ -1,29 +1,61 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 
+import 'package:myapp/services/api_service.dart'; // Added import
 import 'chat_provider.dart';
 import 'history_page.dart';
 import 'screens/pre_prompts_page.dart';
 
-class ChatPage extends StatelessWidget {
+class ChatPage extends StatefulWidget { // Changed to StatefulWidget
   const ChatPage({super.key});
+
+  @override
+  State<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends State<ChatPage> {
+  final ApiService _apiService = ApiService();
+  String _userName = 'User Name'; // State variable for user name
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      if (await _apiService.hasToken()) {
+        final profile = await _apiService.getProfile();
+        if (mounted) {
+          setState(() {
+            _userName = profile['name']?.split(' ').first ?? 'User';
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore or log error
+      debugPrint('Error loading user profile: $e');
+    }
+  }
 
   Widget _buildDrawer(BuildContext context) {
     final chatProvider = Provider.of<ChatProvider>(context);
-    final user = Supabase.instance.client.auth.currentUser;
-    final userName = user?.userMetadata?['full_name'] ?? 'User Name';
+    // final user = Supabase.instance.client.auth.currentUser; // Removed
+    // final userName = user?.userMetadata?['full_name'] ?? 'User Name'; // Removed
 
     final recentChats = chatProvider.chatHistory.take(2).toList();
     
@@ -88,7 +120,7 @@ class ChatPage extends StatelessWidget {
             const Divider(color: Colors.white24),
             ListTile(
               leading: const Icon(Icons.account_circle, color: Colors.white),
-              title: Text(userName, style: const TextStyle(color: Colors.white, fontSize: 16)),
+              title: Text(_userName, style: const TextStyle(color: Colors.white, fontSize: 16)), // Used _userName from state
               onTap: () {
                 // Future profile customization will be here
               },
@@ -114,9 +146,11 @@ class ChatPage extends StatelessWidget {
                         ),
                         TextButton(
                           onPressed: () async {
-                            await Supabase.instance.client.auth.signOut();
+                            Navigator.of(context).pop(); // Close dialog
+                            Provider.of<ChatProvider>(context, listen: false).clearOnLogout();
+                            await _apiService.logout(); // Used ApiService.logout
                             if (context.mounted) {
-                              Navigator.of(context).pop();
+                              context.go('/welcome'); // Used context.go
                             }
                           },
                           child: const Text('Yes', style: TextStyle(color: Colors.redAccent)),
@@ -528,14 +562,27 @@ class MessageBubble extends StatelessWidget {
                       ),
                     MarkdownBody(
                       data: message.text.split('\n\n=== Document Content ===').first,
-                      styleSheet:
-                          MarkdownStyleSheet.fromTheme(
-                            Theme.of(context),
-                          ).copyWith(
-                            p: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.white,
-                            ),
-                          ),
+                      softLineBreak: true,
+                      builders: {
+                        'pre': _CopyableCodeBlockBuilder(),
+                      },
+                      styleSheet: MarkdownStyleSheet.fromTheme(
+                        Theme.of(context),
+                      ).copyWith(
+                        p: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white,
+                        ),
+                        code: GoogleFonts.sourceCodePro(
+                          fontSize: 13,
+                          color: Colors.white,
+                        ),
+                        codeblockDecoration: BoxDecoration(
+                          color: const Color(0xFF111118),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        codeblockPadding: const EdgeInsets.all(14),
+                        blockSpacing: 8,
+                      ),
                     ),
                     if (!message.isUser)
                       Row(
@@ -890,6 +937,9 @@ class _ChatInputFieldState extends State<ChatInputField> {
                       setState(() {
                         _isListening = false;
                       });
+                    } else {
+                      // Rebuild so mic ↔ send icon updates on every keystroke
+                      setState(() {});
                     }
                   },
                   style: const TextStyle(color: Colors.white),
@@ -970,5 +1020,112 @@ class _ChatInputFieldState extends State<ChatInputField> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+}
+
+/// Custom markdown builder that wraps every fenced code block
+/// with a dark container and a one-tap Copy button.
+class _CopyableCodeBlockBuilder extends MarkdownElementBuilder {
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    // 'pre' element wraps the inner 'code' element
+    final rawText = element.textContent;
+    // Strip leading/trailing whitespace that the markdown parser adds
+    final codeText = rawText.trimRight();
+
+    return _CopyableCodeBlock(codeText: codeText);
+  }
+}
+
+class _CopyableCodeBlock extends StatefulWidget {
+  final String codeText;
+  const _CopyableCodeBlock({required this.codeText});
+
+  @override
+  State<_CopyableCodeBlock> createState() => _CopyableCodeBlockState();
+}
+
+class _CopyableCodeBlockState extends State<_CopyableCodeBlock> {
+  bool _copied = false;
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: widget.codeText));
+    if (!mounted) return;
+    setState(() => _copied = true);
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => _copied = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111118),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header bar with copy button
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1C1C2E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'prompt',
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _copy,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _copied
+                        ? const Row(
+                            key: ValueKey('done'),
+                            children: [
+                              Icon(Icons.check_rounded, size: 14, color: Colors.greenAccent),
+                              SizedBox(width: 4),
+                              Text('Copied', style: TextStyle(color: Colors.greenAccent, fontSize: 12)),
+                            ],
+                          )
+                        : const Row(
+                            key: ValueKey('copy'),
+                            children: [
+                              Icon(Icons.copy_rounded, size: 14, color: Colors.white54),
+                              SizedBox(width: 4),
+                              Text('Copy', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                            ],
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Code content
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: SelectableText(
+              widget.codeText,
+              style: GoogleFonts.sourceCodePro(
+                fontSize: 13,
+                color: Colors.white,
+                height: 1.55,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

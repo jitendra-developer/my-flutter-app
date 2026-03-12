@@ -1,19 +1,18 @@
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
-import 'package:dart_openai/dart_openai.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'dart:io';
 import 'dart:convert';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:myapp/services/api_service.dart';
 import 'chat_page.dart';
 
 class ChatProvider with ChangeNotifier {
   List<Message> _messages = [];
   bool _isResponding = false;
-  OpenAI? _openAI;
+  final ApiService _apiService = ApiService();
   final FlutterTts _flutterTts = FlutterTts();
   bool _isSpeaking = false;
   final List<String> _ttsQueue = [];
@@ -33,52 +32,39 @@ class ChatProvider with ChangeNotifier {
 
   List<ChatSession> get chatHistory => _chatHistory;
 
-  final _supabase = Supabase.instance.client;
-  
   ChatProvider() {
-    _openAI = OpenAI.instance;
     _initTts();
-    _initAuthListener();
+    _loadChats(); // Load natively if token exists
   }
 
-  void _initAuthListener() {
-    _supabase.auth.onAuthStateChange.listen((data) {
-      if (data.session != null) {
-        _loadChats();
-      } else {
-        _chatHistory.clear();
-        _messages.clear();
-        _currentSessionId = null;
-        notifyListeners();
-      }
-    });
+  void initializeAfterAuth() {
+    _loadChats();
+  }
+
+  void clearOnLogout() {
+    _chatHistory.clear();
+    _messages.clear();
+    _currentSessionId = null;
+    notifyListeners();
   }
 
   Future<void> _loadChats() async {
-    final currentUser = _supabase.auth.currentUser;
-    if (currentUser == null) return;
-
     try {
-      final response = await _supabase
-          .from('chat_sessions')
-          .select()
-          .eq('user_id', currentUser.id)
-          .order('created_at', ascending: false);
-
-      final List<dynamic> data = response;
+      if (!await _apiService.hasToken()) return;
+      
+      final data = await _apiService.getChatSessions();
       _chatHistory = data.map((e) => ChatSession.fromJson(e)).toList();
       _chatHistory.removeWhere((s) => s.messages.length < 2);
 
       createNewChat();
       notifyListeners();
     } catch (e) {
-      developer.log('Error loading chats from Supabase', error: e);
+      developer.log('Error loading chats from API', error: e);
     }
   }
 
   Future<void> _saveChats() async {
-    final currentUser = _supabase.auth.currentUser;
-    if (currentUser == null) return;
+    if (!await _apiService.hasToken()) return;
 
     if (_currentSessionId != null) {
       final index = _chatHistory.indexWhere((s) => s.id == _currentSessionId);
@@ -91,16 +77,19 @@ class ChatProvider with ChangeNotifier {
     
     try {
       for (final chat in chatsToSave) {
-        await _supabase.from('chat_sessions').upsert({
-          'id': chat.id,
-          'user_id': currentUser.id,
-          'title': chat.title,
-          'messages': chat.messages.map((m) => m.toJson()).toList(),
-          // created_at is handled by default on insert
-        });
+        // Simple logic: Assuming the backend handles saving or creating via these endpoints.
+        // We will pass the messages JSON. If it's a UUID, we likely need to POST unless we track backend IDs.
+        // For now, attempting PUT, if fails, fallback to POST.
+        try {
+           await _apiService.updateChatSession(chat.id, chat.title, chat.messages.map((m) => m.toJson()).toList());
+        } catch (_) {
+           final res = await _apiService.createChatSession(chat.title, chat.messages.map((m) => m.toJson()).toList());
+           // Update local ID to match backend if they return one
+           if (res['id'] != null) chat.id = res['id'].toString();
+        }
       }
     } catch (e) {
-      developer.log('Error saving chats to Supabase', error: e);
+      developer.log('Error saving chats to API', error: e);
     }
   }
 
@@ -157,9 +146,9 @@ class ChatProvider with ChangeNotifier {
     }
     
     try {
-      await _supabase.from('chat_sessions').delete().eq('id', sessionId);
+      await _apiService.deleteChatSession(sessionId);
     } catch (e) {
-      developer.log('Failed to delete chat from Supabase', error: e);
+      developer.log('Failed to delete chat from API', error: e);
     }
   }
 
@@ -167,22 +156,15 @@ class ChatProvider with ChangeNotifier {
     if (_currentSessionId == null || _messages.length < 2) return;
     try {
       final contextText = _messages.take(2).map((m) => "${m.isUser ? 'User' : 'AI'}: ${m.text}").join('\n');
-      final response = await _openAI!.chat.create(
-        model: 'gpt-3.5-turbo',
-        messages: [
-          OpenAIChatCompletionChoiceMessageModel(
-            role: OpenAIChatMessageRole.user,
-            content: [
-              OpenAIChatCompletionChoiceMessageContentItemModel.text(
-                "Generate a clear, brief 3 to 5 word title for this conversation. Return ONLY the title, no quotes or extra text.\n\nConversation:\n$contextText",
-              ),
-            ],
-          ),
-        ],
-      );
-      final title =
-          response.choices.first.message.content?.first?.text?.trim() ??
-          "New Chat";
+      
+      final response = await _apiService.aiChat([
+        {
+          "role": "user",
+          "content": "Generate a clear, brief 3 to 5 word title for this conversation. Return ONLY the title, no quotes or extra text.\n\nConversation:\n$contextText"
+        }
+      ]);
+      
+      final title = response['content']?.toString().trim() ?? "New Chat";
 
       final index = _chatHistory.indexWhere((s) => s.id == _currentSessionId);
       if (index != -1) {
@@ -246,10 +228,9 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Builds the list of messages to be sent to the OpenAI API
-  List<OpenAIChatCompletionChoiceMessageModel> _buildMessageHistory(
-      {bool forVoice = false}) {
-    final List<OpenAIChatCompletionChoiceMessageModel> apiMessages = [];
+  // Builds the list of messages to be sent to the API
+  List<Map<String, dynamic>> _buildMessageHistory({bool forVoice = false}) {
+    final List<Map<String, dynamic>> apiMessages = [];
 
     // System prompt for persona and concise responses
     String systemPromptText = """You are Vakya Pro, a prompt generation assistant.
@@ -288,54 +269,46 @@ class ChatProvider with ChangeNotifier {
       Generate a clear prompt the user can use in AI tools.
 
       When generating the final result:
-      First write a short explanation.
-      Then show the prompt inside a code block.
+      First write a short explanation sentence.
+      Then ALWAYS wrap the prompt itself in a markdown code block using triple backticks.
 
-      Example:
+      Example format you MUST follow:
 
-      Here is a prompt you can use.""";
+      Here is a prompt you can use:
+
+      ```
+      Transform my photo into a cinematic portrait of a Rajput king wearing a royal Rajput king dress. The setting should be a vibrant palace background, showcasing rich colors and intricate details that emphasize the grandeur and regal nature of the character.
+      ```
+
+      You can take this prompt and use it with your desired AI tool!""";
+
+    
     if (forVoice) {
       systemPromptText +=
           " Your responses are being spoken via Text-to-Speech, so write like you are having a spoken conversation. Use brief sentences, natural pauses, and avoid code blocks, tables, or long lists unless explicitly requested.";
     }
 
-    apiMessages.add(
-      OpenAIChatCompletionChoiceMessageModel(
-        role: OpenAIChatMessageRole.system,
-        content: [
-          OpenAIChatCompletionChoiceMessageContentItemModel.text(systemPromptText)
-        ],
-      ),
-    );
+    apiMessages.add({
+      'role': 'system',
+      'content': systemPromptText,
+    });
 
     apiMessages.addAll(_messages.map((message) {
-      final contentItems =
-          <OpenAIChatCompletionChoiceMessageContentItemModel>[];
+      String finalContent = message.text;
 
-      if (message.text.isNotEmpty) {
-        contentItems.add(
-          OpenAIChatCompletionChoiceMessageContentItemModel.text(message.text),
-        );
-      }
-
+      // Note: Backend might need specific format for base64 images, 
+      // but assuming standard text content for now per docs. 
+      // If image extraction is needed, append it if valid.
       if (message.imagePath != null && message.imagePath!.isNotEmpty) {
         final bytes = File(message.imagePath!).readAsBytesSync();
         final base64Image = base64Encode(bytes);
-        contentItems.add(
-          OpenAIChatCompletionChoiceMessageContentItemModel.imageUrl(
-            "data:image/jpeg;base64,$base64Image",
-          ),
-        );
+        finalContent += "\n\n[Attached Image (Base64): data:image/jpeg;base64,$base64Image]";
       }
 
-      return OpenAIChatCompletionChoiceMessageModel(
-        content: contentItems.isNotEmpty
-            ? contentItems
-            : [OpenAIChatCompletionChoiceMessageContentItemModel.text("")],
-        role: message.isUser
-            ? OpenAIChatMessageRole.user
-            : OpenAIChatMessageRole.assistant,
-      );
+      return {
+        'role': message.isUser ? 'user' : 'assistant',
+        'content': finalContent,
+      };
     }));
 
     return apiMessages;
@@ -401,27 +374,20 @@ class ChatProvider with ChangeNotifier {
 
     try {
       if (isImageRequest) {
-        // DALL-E 3 Image Generation or Modification
+        // Handle Image Generation via Backend
         _messages[aiMessageIndex] = Message(
           text: 'Generating image... Please wait.',
           isUser: false,
         );
         notifyListeners();
 
-        final response = await _openAI!.image.create(
-          prompt: finalPromptText,
-          model: "dall-e-3",
-          n: 1,
-          size: OpenAIImageSize.size1024,
-          responseFormat: OpenAIImageResponseFormat.url,
-        );
-
-        final imageUrl = response.data.first.url;
+        final response = await _apiService.generateImage(finalPromptText);
+        final imageUrl = response['url'] ?? '';
 
         _messages[aiMessageIndex] = Message(
           text: 'Here is your generated image:',
           isUser: false,
-          imagePath: imageUrl, // Storing remote URL instead of local path for simplicity in display
+          imagePath: imageUrl,
         );
         notifyListeners();
 
@@ -431,51 +397,26 @@ class ChatProvider with ChangeNotifier {
         }
 
       } else {
-        // Standard Text/Vision Completion via GPT-4o
-        final stream = _openAI!.chat.createStream(
-          model: 'gpt-4o',
-          temperature: 0.7,
-          maxTokens: 1000,
-          messages: _buildMessageHistory(forVoice: isVoiceInput),
+        // Standard Text AI Chat (Non-stream since we skipped SSE implementation for now)
+        final history = _buildMessageHistory(forVoice: isVoiceInput);
+        final response = await _apiService.aiChat(history);
+        
+        final aiText = response['content']?.toString() ?? 'Error: Invalid response format';
+
+        _messages[aiMessageIndex] = Message(
+          text: aiText,
+          isUser: false,
         );
+        notifyListeners();
 
-        String fullResponse = '';
-        String currentSentenceBuffer = '';
-
-        await for (final chunk in stream) {
-          if (!_isResponding) break;
-
-          final content = chunk.choices.first.delta.content;
-
-          if (content != null && content.isNotEmpty) {
-            final textPart = content.first?.text ?? '';
-            fullResponse += textPart;
-
-            _messages[aiMessageIndex] = Message(
-              text: fullResponse,
-              isUser: false,
-            );
-            notifyListeners();
-
-            if (isVoiceInput) {
-              currentSentenceBuffer += textPart;
-              final splitPattern = RegExp(r'(?<=[.!?])\s+|\n');
-              if (currentSentenceBuffer.contains(splitPattern)) {
-                final parts = currentSentenceBuffer.split(splitPattern);
-                for (int i = 0; i < parts.length - 1; i++) {
-                  if (parts[i].trim().isNotEmpty) {
-                    _ttsQueue.add(parts[i].trim());
-                  }
-                }
-                currentSentenceBuffer = parts.last;
-                _processTtsQueue();
-              }
+        if (isVoiceInput) {
+          final splitPattern = RegExp(r'(?<=[.!?])\s+|\n');
+          final parts = aiText.split(splitPattern);
+          for (final part in parts) {
+            if (part.trim().isNotEmpty) {
+              _ttsQueue.add(part.trim());
             }
           }
-        }
-
-        if (isVoiceInput && _isResponding && currentSentenceBuffer.trim().isNotEmpty) {
-          _ttsQueue.add(currentSentenceBuffer.trim());
           _processTtsQueue();
         }
       }
@@ -582,7 +523,7 @@ class ChatProvider with ChangeNotifier {
 }
 
 class ChatSession {
-  final String id;
+  String id;
   String title;
   List<Message> messages;
 

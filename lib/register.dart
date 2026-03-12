@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:developer' as developer;
 import 'package:myapp/google_esign.dart';
 import 'package:myapp/utils.dart';
+import 'package:myapp/services/api_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -36,36 +36,29 @@ class _RegisterPageState extends State<RegisterPage> {
       setState(() => _isLoading = true);
       final email = _emailController.text.trim();
       try {
-        final response = await Supabase.instance.client.auth.signUp(
-          email: email,
-          password: _passwordController.text.trim(),
-          data: {'full_name': _fullNameController.text.trim()},
+        final apiService = ApiService();
+        await apiService.registerWithEmailOTP(
+          _fullNameController.text.trim(),
+          email,
+          _passwordController.text.trim(),
         );
 
-        if (response.user != null) {
-          if (mounted) {
-            showFeedback(
-              context,
-              'Success! Please check your email to verify.',
-            );
-            context.go('/otp-verification', extra: email);
-          }
-        } else {
+        if (mounted) {
           showFeedback(
             context,
-            'Registration failed. Please try again.',
-            isError: true,
+            'Success! Please check your email for the OTP.',
           );
+          context.go('/otp-verification', extra: email);
         }
-      } on AuthException catch (e) {
-        developer.log('AuthException: ${e.message}', error: e);
-        showFeedback(context, 'Error: ${e.message}', isError: true);
       } catch (e) {
         developer.log('Unexpected error during registration: $e', error: e);
-        showFeedback(context, 'An unexpected error occurred.', isError: true);
-      }
-      if (mounted) {
-        setState(() => _isLoading = false);
+        if (mounted) {
+          showFeedback(context, e.toString().replaceAll('Exception: ', ''), isError: true);
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }

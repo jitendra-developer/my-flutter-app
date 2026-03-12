@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pinput/pinput.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:myapp/services/api_service.dart';
 import 'package:myapp/utils.dart';
 import 'dart:developer' as developer;
 
@@ -26,24 +26,25 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     setState(() => _isVerifying = true);
 
     try {
-      final response = await Supabase.instance.client.auth.verifyOTP(
-        type: OtpType.signup,
-        token: _otpController.text.trim(),
-        email: widget.email,
+      final apiService = ApiService();
+      await apiService.verifyEmailOTP(
+        widget.email,
+        _otpController.text.trim(),
       );
-      // The GoRouter redirect logic in main.dart will handle navigation
-      // to the /chat screen automatically upon successful session creation.
-      developer.log('OTP verification successful: ${response.user?.id}');
-    } on AuthException catch (e) {
-      developer.log('OTP AuthException: ${e.message}', error: e);
-      showFeedback(context, e.message, isError: true);
+      
+      developer.log('OTP verification successful');
+      if (mounted) {
+        context.go('/chat');
+      }
     } catch (e) {
-      developer.log('Unexpected OTP error: $e', error: e);
-      showFeedback(context, 'An unexpected error occurred.', isError: true);
-    }
-
-    if (mounted) {
-      setState(() => _isVerifying = false);
+      developer.log('OTP error: $e', error: e);
+      if (mounted) {
+        showFeedback(context, e.toString().replaceAll('Exception: ', ''), isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isVerifying = false);
+      }
     }
   }
 
@@ -51,24 +52,24 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     setState(() => _isResending = true);
 
     try {
-      await Supabase.instance.client.auth.resend(
-        type: OtpType.signup,
-        email: widget.email,
-      );
-      showFeedback(
-        context,
-        'A new confirmation code has been sent to ${widget.email}.',
-      );
-    } on AuthException catch (e) {
-      developer.log('Resend OTP AuthException: ${e.message}', error: e);
-      showFeedback(context, e.message, isError: true);
+      final apiService = ApiService();
+      await apiService.resendEmailOTP(widget.email);
+      
+      if (mounted) {
+        showFeedback(
+          context,
+          'A new confirmation code has been sent to ${widget.email}.',
+        );
+      }
     } catch (e) {
-      developer.log('Unexpected Resend OTP error: $e', error: e);
-      showFeedback(context, 'An unexpected error occurred.', isError: true);
-    }
-
-    if (mounted) {
-      setState(() => _isResending = false);
+      developer.log('Resend OTP error: $e', error: e);
+      if (mounted) {
+        showFeedback(context, e.toString().replaceAll('Exception: ', ''), isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isResending = false);
+      }
     }
   }
 

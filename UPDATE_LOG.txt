@@ -1,0 +1,128 @@
+================================================================================
+  VAKYA PRO — APP UPDATE LOG
+  Project: my-flutter-app
+  Platform: Flutter (Android APK)
+================================================================================
+
+--------------------------------------------------------------------------------
+[BUILD 1.0.0] — Initial Release
+Date: ~2026-02-23
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Initial Flutter app setup
+  - Basic OpenAI chat integration
+  - Simple chat UI with message bubbles
+  - Chat history stored locally via SharedPreferences
+  - AI-generated chat session titles
+  - New Chat (+) button and History icon in AppBar
+  - ChatHistoryPage: view, select, and delete past chats
+
+--------------------------------------------------------------------------------
+[BUILD 1.1.0] — Voice & Storage Improvements
+Date: ~2026-02-26
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Continuous voice conversation mode (speech-to-text)
+  - Voice input with auto-send on speech end
+  - Chat data and user profiles saved to Supabase
+  - Microphone permission handling
+
+BUG FIXES:
+  - Fixed chats and profiles not being stored in Supabase
+
+--------------------------------------------------------------------------------
+[BUILD 1.2.0] — ChatGPT-style Sidebar UI
+Date: ~2026-03-01
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Collapsible sidebar replacing top-right menu
+  - Sidebar items: New Chat, Pre Prompts, Recent Chats (last 2), User Name, Log Out
+  - Cleaner and more organized navigation layout
+  - Recent chats section in sidebar (non-expandable, shows last 2)
+
+--------------------------------------------------------------------------------
+[BUILD 1.3.0] — Pre-Prompts Feature
+Date: ~2026-02-25
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Pre-Prompts screen with predefined AI prompt templates
+  - Prompt categories for: Image AI, ChatGPT, Marketing, Coding
+  - Selecting a prompt starts a new chat with that prompt as first message
+  - Pre Prompts accessible from sidebar
+
+--------------------------------------------------------------------------------
+[BUILD 1.4.0] — Pre-Prompts UI Refinement
+Date: ~2026-03-05
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Dropdown filter on Pre-Prompts page: Popular, Latest, Trending
+  - Image preview shows related prompts of the same category
+  - Prompts aligned to generate images matching their previews
+
+BUG FIXES:
+  - Filter icon now opens dropdown instead of static action
+
+--------------------------------------------------------------------------------
+[BUILD 2.0.0] — Backend Migration (Custom API)
+Date: ~2026-03-11
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Full migration from Supabase + OpenAI direct calls to custom backend API
+  - Base URL: https://api.vakyapro.com/api
+  - Authentication via JWT Bearer tokens (login, register, Google OAuth, OTP verify)
+  - Chat sessions saved and loaded from backend (/chat-sessions endpoints)
+  - AI chat routed through /ai/chat backend endpoint
+  - Image generation routed through /ai/image backend endpoint
+  - Prompt generation via /prompts/generate endpoint
+  - User profile management via /profile endpoint
+  - Logout clears local token and calls backend logout
+
+BUG FIXES:
+  - Removed all direct Supabase and OpenAI SDK dependencies
+  - Resolved auth token handling across app restarts
+
+--------------------------------------------------------------------------------
+[BUILD 2.1.0] — Chat Input & Message Display Improvements
+Date: 2026-03-12
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Mic → Send button transformation:
+      * When text field is empty → shows microphone icon
+      * When user starts typing → icon smoothly changes to send (↑) arrow
+      * After message is sent → reverts back to microphone icon
+      * Same purple gradient color palette maintained throughout
+
+  - AI prompt response now shown in a copyable code block:
+      * Code block has a dark header bar labeled "prompt"
+      * One-tap "Copy" button in the top-right of the code block
+      * Animates to "✓ Copied" for 2 seconds after copying
+      * Prompt text is selectable (long-press to select manually)
+      * Vertical scrolling layout — no more horizontal scroll
+
+  - System prompt updated to enforce code fence format:
+      * AI now always wraps the final generated prompt in triple backticks
+      * Previous behaviour was wrapping in double quotes
+
+BUG FIXES:
+  - Fixed icon not updating when text was typed (missing setState in onChanged)
+  - Fixed long prompts displaying as a single horizontal scroll line
+  - Added markdown package explicitly to pubspec.yaml for custom builder
+
+--------------------------------------------------------------------------------
+[TEMPLATE FOR NEXT BUILD — copy and fill in]
+--------------------------------------------------------------------------------
+[BUILD X.X.X] — <Short Title>
+Date: YYYY-MM-DD
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  -
+
+IMPROVEMENTS:
+  -
+
+BUG FIXES:
+  -
+
+================================================================================
+  END OF LOG
+================================================================================

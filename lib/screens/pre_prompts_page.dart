@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:myapp/chat_provider.dart';
@@ -655,7 +656,12 @@ class _PromptVariantRowState extends State<_PromptVariantRow> {
                             ),
                             const SizedBox(width: 12),
                             IconButton(
-                              onPressed: () {},
+                              onPressed: () {
+                                final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+                                chatProvider.createNewChat();
+                                chatProvider.sendMessage(promptText);
+                                context.go('/chat');
+                              },
                               icon: const Icon(
                                 Icons.send_outlined,
                                 color: Colors.white,

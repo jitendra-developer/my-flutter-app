@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:myapp/utils.dart'; // Import the utils file
 import 'dart:developer' as developer;
 import 'package:myapp/google_esign.dart';
+import 'package:myapp/services/api_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -34,28 +34,30 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _isLoading = true);
     try {
-      final response = await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final apiService = ApiService();
+      await apiService.login(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
       );
-      developer.log('Login successful: ${response.user?.id}');
-    } on AuthException catch (e) {
-      developer.log('Login AuthException: ${e.message}', error: e);
-      if (e.message.contains('Invalid login credentials')) {
+      developer.log('Login successful');
+      if (mounted) {
+        context.go('/chat');
+      }
+    } catch (e) {
+      developer.log('Login error: $e', error: e);
+      if (e.toString().contains('credentials') || e.toString().contains('does not exist')) {
         showFeedback(
           context,
           'User does not exist or password was incorrect.',
           isError: true,
         );
       } else {
-        showFeedback(context, e.message, isError: true);
+        showFeedback(context, e.toString().replaceAll('Exception: ', ''), isError: true);
       }
-    } catch (e) {
-      developer.log('Unexpected login error: $e', error: e);
-      showFeedback(context, 'An unexpected error occurred.', isError: true);
-    }
-    if (mounted) {
-      setState(() => _isLoading = false);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
