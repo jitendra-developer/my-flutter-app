@@ -111,7 +111,7 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    Provider.of<ChatProvider>(context, listen: false).switchChat(chat.id);
+                    Provider.of<ChatProvider>(context, listen: false).switchChat(chat.localId);
                   },
                 );
               }),
@@ -150,7 +150,7 @@ class _ChatPageState extends State<ChatPage> {
                             Provider.of<ChatProvider>(context, listen: false).clearOnLogout();
                             await _apiService.logout(); // Used ApiService.logout
                             if (context.mounted) {
-                              context.go('/welcome'); // Used context.go
+                              context.go('/login'); // Used context.go
                             }
                           },
                           child: const Text('Yes', style: TextStyle(color: Colors.redAccent)),
@@ -213,11 +213,13 @@ class _ChatPageState extends State<ChatPage> {
               },
             ),
           ),
-          Consumer<ChatProvider>(
-            builder: (context, provider, child) {
-              if (provider.messages.isEmpty) return const SizedBox.shrink();
-              return ChatInputField(key: ChatInputField.globalKey);
-            },
+          SafeArea(
+            child: Consumer<ChatProvider>(
+              builder: (context, provider, child) {
+                if (provider.messages.isEmpty) return const SizedBox.shrink();
+                return ChatInputField(key: ChatInputField.globalKey);
+              },
+            ),
           ),
         ],
       ),
@@ -338,20 +340,28 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
             ),
           ),
           const SizedBox(height: 16),
-          // Grid
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 3.0,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            children: [
-              _buildTypeCard(Icons.image, 'Image AI', Colors.blueAccent),
-              _buildTypeCard(Icons.chat, 'ChatGPT', Colors.tealAccent),
-              _buildTypeCard(Icons.campaign, 'Marketing', Colors.purpleAccent),
-              _buildTypeCard(Icons.code, 'Coding', Colors.lightBlueAccent),
-            ],
+          // Grid - Responsive based on screen width
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final crossAxisCount = width > 600 ? 4 : 2;
+              final aspectRatio = width > 600 ? 4.0 : 3.0;
+              
+              return GridView.count(
+                crossAxisCount: crossAxisCount,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: aspectRatio,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                children: [
+                  _buildTypeCard(Icons.image, 'Image AI', Colors.blueAccent),
+                  _buildTypeCard(Icons.chat, 'ChatGPT', Colors.tealAccent),
+                  _buildTypeCard(Icons.campaign, 'Marketing', Colors.purpleAccent),
+                  _buildTypeCard(Icons.code, 'Coding', Colors.lightBlueAccent),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 32),
           Text(
@@ -382,14 +392,17 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: iconColor, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: GoogleFonts.plusJakartaSans(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+          Icon(icon, color: iconColor, size: 18),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              title,
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -495,7 +508,10 @@ class MessageBubble extends StatelessWidget {
           Flexible(
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.70,
+                // Max width 75% on phones, capped at 600px on large tablets
+                maxWidth: MediaQuery.of(context).size.width > 800 
+                    ? 600 
+                    : MediaQuery.of(context).size.width * 0.75,
               ),
               child: Container(
                 margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -863,7 +879,7 @@ class _ChatInputFieldState extends State<ChatInputField> {
             children: [
               // Media & Document attachment buttons
               Container(
-                margin: const EdgeInsets.only(right: 8, bottom: 4),
+                margin: const EdgeInsets.only(right: 6, bottom: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFF2A2A35),
                   borderRadius: BorderRadius.circular(20),
@@ -872,6 +888,8 @@ class _ChatInputFieldState extends State<ChatInputField> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
+                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      padding: EdgeInsets.zero,
                       icon: const Icon(Icons.image_outlined, color: Colors.white70, size: 22),
                       tooltip: 'Attach Image',
                       onPressed: () async {
@@ -893,6 +911,8 @@ class _ChatInputFieldState extends State<ChatInputField> {
                       },
                     ),
                     IconButton(
+                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      padding: EdgeInsets.zero,
                       icon: const Icon(Icons.attach_file_rounded, color: Colors.white70, size: 22),
                       tooltip: 'Attach Document',
                       onPressed: () async {
@@ -952,11 +972,11 @@ class _ChatInputFieldState extends State<ChatInputField> {
                     ),
                     filled: true,
                     fillColor: const Color(0xFF2A2A35),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               
               // Voice / Send buttons
               Container(

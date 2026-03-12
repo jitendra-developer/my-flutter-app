@@ -9,7 +9,10 @@ class ApiService {
 
   // Helper to get headers
   Future<Map<String, String>> _getHeaders({bool isAuth = false}) async {
-    final headers = {'Content-Type': 'application/json'};
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
     if (isAuth) {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(_tokenKey);
@@ -240,5 +243,51 @@ class ApiService {
     final response = await http.get(url, headers: await _getHeaders());
     final data = _handleResponse(response);
     return data['data'] ?? [];
+  }
+
+  /// Fetch multiple app settings (e.g., prefix='onboarding_')
+  Future<Map<String, String>> getAppSettings({String? prefix, List<String>? keys}) async {
+    var uri = Uri.parse('$baseUrl/app-settings');
+    final Map<String, dynamic> queryParams = {};
+    if (prefix != null) queryParams['prefix'] = prefix;
+    if (keys != null && keys.isNotEmpty) queryParams['keys[]'] = keys;
+    
+    if (queryParams.isNotEmpty) {
+      uri = uri.replace(queryParameters: queryParams);
+    }
+
+    try {
+      final response = await http.get(uri, headers: await _getHeaders());
+      final data = _handleResponse(response);
+      final List<dynamic> items = data['data'] ?? [];
+      
+      final Map<String, String> settings = {};
+      for (var item in items) {
+        if (item is Map<String, dynamic>) {
+          final key = item['setting_key']?.toString();
+          final val = item['setting_value']?.toString();
+          if (key != null && val != null) {
+            settings[key] = val;
+          }
+        }
+      }
+      return settings;
+    } catch (e) {
+      developer.log('Failed to fetch app settings', error: e);
+      return {};
+    }
+  }
+
+  /// Fetch a single app setting by key
+  Future<String?> getAppSetting(String key) async {
+    try {
+      final url = Uri.parse('$baseUrl/app-settings/$key');
+      final response = await http.get(url, headers: await _getHeaders());
+      final data = _handleResponse(response);
+      return data['data']?['setting_value']?.toString();
+    } catch (e) {
+      developer.log('Failed to fetch single app setting: $key', error: e);
+      return null;
+    }
   }
 }

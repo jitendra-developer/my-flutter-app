@@ -28,7 +28,8 @@ class ChatProvider with ChangeNotifier {
   }
 
   List<ChatSession> _chatHistory = [];
-  String? _currentSessionId;
+  // Tracks the LOCAL uuid of the current session (used for in-memory lookup)
+  String? _currentSessionLocalId;
 
   List<ChatSession> get chatHistory => _chatHistory;
 
@@ -44,7 +45,7 @@ class ChatProvider with ChangeNotifier {
   void clearOnLogout() {
     _chatHistory.clear();
     _messages.clear();
-    _currentSessionId = null;
+    _currentSessionLocalId = null;
     notifyListeners();
   }
 
@@ -53,7 +54,7 @@ class ChatProvider with ChangeNotifier {
       if (!await _apiService.hasToken()) return;
       
       final data = await _apiService.getChatSessions();
-      _chatHistory = data.map((e) => ChatSession.fromJson(e)).toList();
+      _chatHistory = data.map((e) => ChatSession.fromBackendJson(e)).toList();
       _chatHistory.removeWhere((s) => s.messages.length < 2);
 
       createNewChat();
@@ -63,81 +64,94 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  Future<void> _saveChats() async {
+  /// Converts local Message list to the backend-expected role/content format.
+  List<Map<String, dynamic>> _messagesToBackendFormat(List<Message> msgs) {
+    return msgs.map((m) => {
+      'role': m.isUser ? 'user' : 'assistant',
+      'content': m.text,
+    }).toList();
+  }
+
+  Future<void> _saveCurrentSession() async {
     if (!await _apiService.hasToken()) return;
+    if (_currentSessionLocalId == null) return;
 
-    if (_currentSessionId != null) {
-      final index = _chatHistory.indexWhere((s) => s.id == _currentSessionId);
-      if (index != -1) {
-        _chatHistory[index].messages = List.from(_messages);
-      }
-    }
+    final index = _chatHistory.indexWhere((s) => s.localId == _currentSessionLocalId);
+    if (index == -1) return;
 
-    final chatsToSave = _chatHistory.where((e) => e.messages.length >= 2).toList();
-    
+    final chat = _chatHistory[index]
+      ..messages = List.from(_messages);
+
+    if (chat.messages.length < 2) return; // Don't save empty/single-message sessions
+
+    final backendMessages = _messagesToBackendFormat(chat.messages);
+
     try {
-      for (final chat in chatsToSave) {
-        // Simple logic: Assuming the backend handles saving or creating via these endpoints.
-        // We will pass the messages JSON. If it's a UUID, we likely need to POST unless we track backend IDs.
-        // For now, attempting PUT, if fails, fallback to POST.
-        try {
-           await _apiService.updateChatSession(chat.id, chat.title, chat.messages.map((m) => m.toJson()).toList());
-        } catch (_) {
-           final res = await _apiService.createChatSession(chat.title, chat.messages.map((m) => m.toJson()).toList());
-           // Update local ID to match backend if they return one
-           if (res['id'] != null) chat.id = res['id'].toString();
-        }
+      if (chat.backendId == null) {
+        // First save — POST to create a session and store the returned numeric id
+        final res = await _apiService.createChatSession(chat.title, backendMessages);
+        final newId = res['id']?.toString() ?? res['data']?['id']?.toString();
+        if (newId != null) chat.backendId = newId;
+      } else {
+        // Subsequent saves — PUT using the backend's numeric id
+        await _apiService.updateChatSession(chat.backendId!, chat.title, backendMessages);
       }
     } catch (e) {
-      developer.log('Error saving chats to API', error: e);
+      developer.log('Error saving chat session to API', error: e);
     }
   }
+
+  // Keep _saveChats as a convenience wrapper that saves only the current session.
+  Future<void> _saveChats() => _saveCurrentSession();
 
   void createNewChat() {
     if (_isResponding) stopResponding();
 
-    _chatHistory.removeWhere((s) => s.messages.length < 2 && s.id != _currentSessionId);
-    if (_currentSessionId != null && _messages.length < 2) {
-      _chatHistory.removeWhere((s) => s.id == _currentSessionId);
+    _chatHistory.removeWhere((s) => s.messages.length < 2 && s.localId != _currentSessionLocalId);
+    if (_currentSessionLocalId != null && _messages.length < 2) {
+      _chatHistory.removeWhere((s) => s.localId == _currentSessionLocalId);
     }
 
     final newSession = ChatSession(
-      id: const Uuid().v4(),
+      localId: const Uuid().v4(),
       title: 'New Chat',
       messages: [],
     );
     _chatHistory.insert(0, newSession);
-    _currentSessionId = newSession.id;
+    _currentSessionLocalId = newSession.localId;
     _messages = [];
-    _saveChats();
+    // No save on new empty chat — backend session created only after first exchange
     notifyListeners();
   }
 
-  void switchChat(String sessionId) {
+  void switchChat(String localId) {
     if (_isResponding) stopResponding();
 
-    if (_currentSessionId != null) {
+    if (_currentSessionLocalId != null) {
       if (_messages.length < 2) {
-        _chatHistory.removeWhere((s) => s.id == _currentSessionId);
+        _chatHistory.removeWhere((s) => s.localId == _currentSessionLocalId);
       } else {
-        final index = _chatHistory.indexWhere((s) => s.id == _currentSessionId);
+        final index = _chatHistory.indexWhere((s) => s.localId == _currentSessionLocalId);
         if (index != -1) {
           _chatHistory[index].messages = List.from(_messages);
         }
       }
     }
 
-    final session = _chatHistory.firstWhere((s) => s.id == sessionId, orElse: () => _chatHistory.first);
-    _currentSessionId = session.id;
+    final session = _chatHistory.firstWhere((s) => s.localId == localId, orElse: () => _chatHistory.first);
+    _currentSessionLocalId = session.localId;
     _messages = List.from(session.messages);
     notifyListeners();
   }
 
-  Future<void> deleteChat(String sessionId) async {
-    _chatHistory.removeWhere((s) => s.id == sessionId);
-    if (_currentSessionId == sessionId) {
+  Future<void> deleteChat(String localId) async {
+    final session = _chatHistory.firstWhere((s) => s.localId == localId, orElse: () => throw Exception('Session not found'));
+    final backendId = session.backendId;
+    _chatHistory.removeWhere((s) => s.localId == localId);
+
+    if (_currentSessionLocalId == localId) {
       if (_chatHistory.isNotEmpty) {
-        switchChat(_chatHistory.first.id);
+        switchChat(_chatHistory.first.localId);
       } else {
         createNewChat();
       }
@@ -145,15 +159,17 @@ class ChatProvider with ChangeNotifier {
       notifyListeners();
     }
     
-    try {
-      await _apiService.deleteChatSession(sessionId);
-    } catch (e) {
-      developer.log('Failed to delete chat from API', error: e);
+    if (backendId != null) {
+      try {
+        await _apiService.deleteChatSession(backendId);
+      } catch (e) {
+        developer.log('Failed to delete chat from API', error: e);
+      }
     }
   }
 
   Future<void> _generateChatTitle() async {
-    if (_currentSessionId == null || _messages.length < 2) return;
+    if (_currentSessionLocalId == null || _messages.length < 2) return;
     try {
       final contextText = _messages.take(2).map((m) => "${m.isUser ? 'User' : 'AI'}: ${m.text}").join('\n');
       
@@ -166,7 +182,7 @@ class ChatProvider with ChangeNotifier {
       
       final title = response['content']?.toString().trim() ?? "New Chat";
 
-      final index = _chatHistory.indexWhere((s) => s.id == _currentSessionId);
+      final index = _chatHistory.indexWhere((s) => s.localId == _currentSessionLocalId);
       if (index != -1) {
         _chatHistory[index].title = title.replaceAll('"', '');
         _saveChats();
@@ -523,25 +539,54 @@ class ChatProvider with ChangeNotifier {
 }
 
 class ChatSession {
-  String id;
+  /// Local UUID — used only for in-memory list lookup.
+  final String localId;
+
+  /// Numeric id returned by the backend after first POST /chat-sessions.
+  /// Null until the session has been persisted on the server.
+  String? backendId;
+
   String title;
   List<Message> messages;
 
-  ChatSession({required this.id, required this.title, required this.messages});
+  ChatSession({
+    required this.localId,
+    this.backendId,
+    required this.title,
+    required this.messages,
+  });
 
+  /// Used only for local serialisation (if needed for UI).
   Map<String, dynamic> toJson() => {
-    'id': id,
+    'localId': localId,
+    'backendId': backendId,
     'title': title,
     'messages': messages.map((m) => m.toJson()).toList(),
   };
 
-  factory ChatSession.fromJson(Map<String, dynamic> json) {
+  /// Parses a session returned by GET /chat-sessions.
+  factory ChatSession.fromBackendJson(Map<String, dynamic> json) {
+    final backendId = json['id']?.toString();
+    // Messages from backend use role/content format
+    final rawMessages = (json['messages'] as List? ?? []);
+    final messages = rawMessages.map((m) {
+      final map = Map<String, dynamic>.from(m);
+      // Backend format: { role, content } — convert to app Message
+      if (map.containsKey('role')) {
+        return Message(
+          text: map['content']?.toString() ?? '',
+          isUser: map['role'] == 'user',
+        );
+      }
+      // Fallback: app-native format
+      return Message.fromJson(map);
+    }).toList();
+
     return ChatSession(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      messages: (json['messages'] as List)
-          .map((m) => Message.fromJson(Map<String, dynamic>.from(m)))
-          .toList(),
+      localId: const Uuid().v4(),
+      backendId: backendId,
+      title: json['title']?.toString() ?? 'Chat',
+      messages: messages,
     );
   }
 }

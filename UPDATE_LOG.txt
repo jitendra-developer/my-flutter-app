@@ -109,6 +109,37 @@ BUG FIXES:
   - Added markdown package explicitly to pubspec.yaml for custom builder
 
 --------------------------------------------------------------------------------
+[BUILD 2.1.1] — API Docs Compliance & Responsive UI
+Date: 2026-03-12
+--------------------------------------------------------------------------------
+NEW FEATURES & IMPROVEMENTS:
+  - Updated logout logic to navigate directly to the Login page instead of the Welcome screen
+  - Added `Accept: application/json` header to all API requests to ensure proper JSON responses
+  - Reworked ChatSession model to separate local temporary UUIDs from backend numeric IDs
+  - Implemented proper create-then-update flow for saving chat sessions to backend `/chat-sessions`
+  - Updated messages sent to backend to use proper `{ "role", "content" }` format
+  - Optimized Chat Page UI to be fully responsive across all screen sizes (phones, tablets)
+  - Made the "Prompt Types" grid dynamically change columns based on screen width
+  - Constrained Chat Bubbles to a maximum width of 600px for better readability on tablets
+  - Wrapped ChatInputField in SafeArea to prevent overlap with iOS/Android system gesture bars
+  - Adjusted ChatInputField and attachments row constraints to prevent overflow on very narrow screens
+
+BUG FIXES:
+  - Fixed critical issue where chat saves were failing with 404s and creating duplicates due to using local UUIDs for backend routes
+
+--------------------------------------------------------------------------------
+[BUILD 2.1.2] — Dynamic App Settings Integration
+Date: 2026-03-12
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Added new `/api/app-settings` backend endpoints to the `ApiService`
+  - Integrated `SettingsService` to fetch dynamic key/value configs for the app
+  - Connected `OnboardingScreen` to the backend so slides (text & images) can be updated dynamically without app releases
+
+IMPROVEMENTS:
+  - Added robust local fallbacks (default text & icons) to the `OnboardingScreen` so the UI remains beautiful even if the backend settings are empty or unreachable
+
+--------------------------------------------------------------------------------
 [TEMPLATE FOR NEXT BUILD — copy and fill in]
 --------------------------------------------------------------------------------
 [BUILD X.X.X] — <Short Title>
@@ -122,6 +153,7 @@ IMPROVEMENTS:
 
 BUG FIXES:
   -
+
 
 ================================================================================
   END OF LOG

@@ -59,11 +59,11 @@ class HistoryPage extends StatelessWidget {
                 trailing: IconButton(
                   icon: const Icon(Icons.delete, color: Colors.white38),
                   onPressed: () {
-                    provider.deleteChat(session.id);
+                    provider.deleteChat(session.localId);
                   },
                 ),
                 onTap: () {
-                  provider.switchChat(session.id);
+                  provider.switchChat(session.localId);
                   Navigator.pop(context); // Go back to the Chat Page
                 },
               );

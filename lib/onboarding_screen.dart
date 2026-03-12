@@ -53,19 +53,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             },
             children: [
               _buildPage(
-                imagePath: settings["onboarding_slide1_image"] ?? "",
-                title: settings["onboarding_slide1_title"] ?? "",
-                subtitle: settings["onboarding_slide1_text"] ?? "",
+                imagePath: settings["onboarding_slide1_image"],
+                title: settings["onboarding_slide1_title"] ?? "Welcome to Vakya Pro",
+                subtitle: settings["onboarding_slide1_text"] ?? "Generate perfect prompts to maximize the power of any AI tool.",
+                fallbackIcon: Icons.auto_awesome,
               ),
               _buildPage(
-                imagePath: settings["onboarding_slide2_image"] ?? "",
-                title: settings["onboarding_slide2_title"] ?? "",
-                subtitle: settings["onboarding_slide2_text"] ?? "",
+                imagePath: settings["onboarding_slide2_image"],
+                title: settings["onboarding_slide2_title"] ?? "For Every AI Platform",
+                subtitle: settings["onboarding_slide2_text"] ?? "Optimized prompts for ChatGPT, Midjourney, Claude, and more.",
+                fallbackIcon: Icons.dashboard_customize,
               ),
               _buildPage(
-                imagePath: settings["onboarding_slide3_image"] ?? "",
-                title: settings["onboarding_slide3_title"] ?? "",
-                subtitle: settings["onboarding_slide3_text"] ?? "",
+                imagePath: settings["onboarding_slide3_image"],
+                title: settings["onboarding_slide3_title"] ?? "Easy to Use",
+                subtitle: settings["onboarding_slide3_text"] ?? "Just describe what you need, and let our AI build the prompt for you.",
+                fallbackIcon: Icons.bolt,
               ),
             ],
           ),
@@ -135,9 +138,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildPage({
-    required String imagePath,
+    String? imagePath,
     required String title,
     required String subtitle,
+    required IconData fallbackIcon,
   }) {
   return Column(
     mainAxisAlignment: MainAxisAlignment.center,
@@ -159,17 +163,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
        ),
        child: ClipRRect(
          borderRadius: BorderRadius.circular(24),
-         child: Image.network(
-           imagePath,
-           fit: BoxFit.cover,
-           loadingBuilder: (context, child, progress) {
-             if (progress == null) return child;
-             return const Center(child: CircularProgressIndicator());
-           },
-           errorBuilder: (context, error, stackTrace) {
-             return const Icon(Icons.image_not_supported, size: 100);
-           },
-         ),
+         child: (imagePath != null && imagePath.isNotEmpty)
+           ? Image.network(
+               imagePath,
+               fit: BoxFit.cover,
+               loadingBuilder: (context, child, progress) {
+                 if (progress == null) return child;
+                 return const Center(child: CircularProgressIndicator());
+               },
+               errorBuilder: (context, error, stackTrace) {
+                 return Icon(fallbackIcon, size: 100, color: const Color(0xFF3B2E7E));
+               },
+             )
+           : Container(
+               color: const Color(0xFF1C1C24),
+               child: Icon(fallbackIcon, size: 100, color: const Color(0xFF4A60D4)),
+             ),
        ),
      ),
 
