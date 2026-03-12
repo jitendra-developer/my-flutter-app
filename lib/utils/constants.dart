@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-final supabase = Supabase.instance.client;
+// Form error messages
 
 extension BuildContextExtension on BuildContext {
   void showErrorSnackBar({required String message}) {

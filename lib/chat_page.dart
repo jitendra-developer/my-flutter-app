@@ -1,111 +1,197 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 
+import 'package:myapp/services/api_service.dart'; // Added import
 import 'chat_provider.dart';
 import 'history_page.dart';
 import 'screens/pre_prompts_page.dart';
 
-class ChatPage extends StatelessWidget {
+class ChatPage extends StatefulWidget { // Changed to StatefulWidget
   const ChatPage({super.key});
+
+  @override
+  State<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends State<ChatPage> {
+  final ApiService _apiService = ApiService();
+  String _userName = 'User Name'; // State variable for user name
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      if (await _apiService.hasToken()) {
+        final profile = await _apiService.getProfile();
+        if (mounted) {
+          setState(() {
+            _userName = profile['name']?.split(' ').first ?? 'User';
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore or log error
+      debugPrint('Error loading user profile: $e');
+    }
+  }
+
+  Widget _buildDrawer(BuildContext context) {
+    final chatProvider = Provider.of<ChatProvider>(context);
+    // final user = Supabase.instance.client.auth.currentUser; // Removed
+    // final userName = user?.userMetadata?['full_name'] ?? 'User Name'; // Removed
+
+    final recentChats = chatProvider.chatHistory.take(2).toList();
+    
+    return Drawer(
+      backgroundColor: const Color(0xFF1C1C24),
+      child: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.add_circle_outline, color: Colors.white),
+              title: const Text('New Chat', style: TextStyle(color: Colors.white, fontSize: 16)),
+              onTap: () {
+                Navigator.pop(context);
+                final cp = Provider.of<ChatProvider>(context, listen: false);
+                cp.setContinuousVoiceMode(false);
+                ChatInputField.globalKey.currentState?.stopListening();
+                cp.createNewChat();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.list_alt, color: Colors.white),
+              title: const Text('Pre Prompts', style: TextStyle(color: Colors.white, fontSize: 16)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PrePromptsPage()),
+                );
+              },
+            ),
+            const Divider(color: Colors.white24),
+            ListTile(
+              leading: const Icon(Icons.history, color: Colors.white),
+              title: const Text('Recent Chats', style: TextStyle(color: Colors.white, fontSize: 16)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HistoryPage()),
+                );
+              },
+            ),
+            if (recentChats.isNotEmpty) ...[
+              ...recentChats.map((chat) {
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 48.0),
+                  title: Text(
+                    chat.title,
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Provider.of<ChatProvider>(context, listen: false).switchChat(chat.id);
+                  },
+                );
+              }),
+            ],
+            const Spacer(),
+            const Divider(color: Colors.white24),
+            ListTile(
+              leading: const Icon(Icons.account_circle, color: Colors.white),
+              title: Text(_userName, style: const TextStyle(color: Colors.white, fontSize: 16)), // Used _userName from state
+              onTap: () {
+                // Future profile customization will be here
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.redAccent),
+              title: const Text('Log Out', style: TextStyle(color: Colors.redAccent, fontSize: 16)),
+              onTap: () {
+                Navigator.pop(context);
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      backgroundColor: const Color(0xFF2C2C2C),
+                      title: const Text('Log Out', style: TextStyle(color: Colors.white)),
+                      content: const Text('Are you sure you want to log out?', style: TextStyle(color: Colors.white70)),
+                      actions: <Widget>[
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            Navigator.of(context).pop(); // Close dialog
+                            Provider.of<ChatProvider>(context, listen: false).clearOnLogout();
+                            await _apiService.logout(); // Used ApiService.logout
+                            if (context.mounted) {
+                              context.go('/welcome'); // Used context.go
+                            }
+                          },
+                          child: const Text('Yes', style: TextStyle(color: Colors.redAccent)),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: const Color(0xFF13131A),
+      drawer: _buildDrawer(context),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const FaIcon(FontAwesomeIcons.chevronLeft, color: Colors.white),
-          onPressed: () => context.go('/'),
+        leading: Builder(
+          builder: (context) {
+            return IconButton(
+              icon: const Icon(Icons.menu, color: Colors.white),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+            );
+          },
         ),
         title: Text(
-          'Vakya AI',
+          'Vakya Pro',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 24,
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.white),
-            onPressed: () {
-              final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-              chatProvider.setContinuousVoiceMode(false);
-              ChatInputField.globalKey.currentState?.stopListening();
-              chatProvider.createNewChat();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.history, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const HistoryPage()),
-              );
-            },
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'logout') {
-                showDialog(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      title: const Text('Log Out'),
-                      content: const Text('Are you sure you want to log out?'),
-                      actions: <Widget>[
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            await Supabase.instance.client.auth.signOut();
-                            // The GoRouter's refreshListenable will handle the navigation.
-                            Navigator.of(context).pop(); // Close the dialog
-                          },
-                          child: const Text('Yes'),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              } else if (value == 'pre_prompts') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PrePromptsPage()),
-                );
-              }
-            },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'pre_prompts',
-                child: Text('Pre Prompts'),
-              ),
-              const PopupMenuItem<String>(
-                value: 'logout',
-                child: Text('Log out'),
-              ),
-            ],
-            icon: const FaIcon(FontAwesomeIcons.ellipsis, color: Colors.white),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -113,17 +199,7 @@ class ChatPage extends StatelessWidget {
             child: Consumer<ChatProvider>(
               builder: (context, provider, child) {
                 if (provider.messages.isEmpty) {
-                  final userName = Supabase.instance.client.auth.currentUser?.userMetadata?['full_name']?.split(' ').first ?? 'User';
-                  return Center(
-                    child: Text(
-                      'Welcome Again $userName',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white54,
-                      ),
-                    ),
-                  );
+                  return const _EmptyChatState();
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -137,8 +213,216 @@ class ChatPage extends StatelessWidget {
               },
             ),
           ),
-          ChatInputField(key: ChatInputField.globalKey),
+          Consumer<ChatProvider>(
+            builder: (context, provider, child) {
+              if (provider.messages.isEmpty) return const SizedBox.shrink();
+              return ChatInputField(key: ChatInputField.globalKey);
+            },
+          ),
         ],
+      ),
+    );
+  }
+}
+class _EmptyChatState extends StatefulWidget {
+  const _EmptyChatState({super.key});
+  @override
+  _EmptyChatStateState createState() => _EmptyChatStateState();
+}
+
+class _EmptyChatStateState extends State<_EmptyChatState> {
+  final TextEditingController _promptController = TextEditingController();
+
+  void _sendPrompt(BuildContext context, String text) {
+     if (text.trim().isEmpty) return;
+     Provider.of<ChatProvider>(context, listen: false).sendMessage(text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Logo/Icon
+          Center(
+            child: Container(
+              width: 100, height: 100,
+              decoration: BoxDecoration(
+                // A subtle gradient background for the icon area to simulate the glowing 3D asset
+                gradient: RadialGradient(
+                  colors: [Colors.deepPurple.withOpacity(0.4), Colors.transparent],
+                  radius: 0.8,
+                ),
+              ),
+              child: const Icon(Icons.bolt, size: 80, color: Colors.amber), 
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Heading
+          Text(
+            'Generate Better AI Prompts',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Subheading
+          Text(
+            'Describe what you want and get optimized\nprompts for any AI tool.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 16,
+              color: const Color(0xFF8F8F99),
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 32),
+          // Input field
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C24),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: TextField(
+              controller: _promptController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'Describe the prompt you want to create...',
+                hintStyle: TextStyle(color: Color(0xFF8F8F99)),
+                prefixIcon: Icon(Icons.search, color: Color(0xFF8F8F99)),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              ),
+              onSubmitted: (text) => _sendPrompt(context, text),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Generate button
+          GestureDetector(
+            onTap: () => _sendPrompt(context, _promptController.text),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF3B2E7E), Color(0xFF4A60D4)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Text(
+                  'Generate Prompt',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          // Prompt Types Title
+          Text(
+            'Prompt Types',
+            style: GoogleFonts.plusJakartaSans(
+              color: const Color(0xFF8F8F99),
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Grid
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 3.0,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            children: [
+              _buildTypeCard(Icons.image, 'Image AI', Colors.blueAccent),
+              _buildTypeCard(Icons.chat, 'ChatGPT', Colors.tealAccent),
+              _buildTypeCard(Icons.campaign, 'Marketing', Colors.purpleAccent),
+              _buildTypeCard(Icons.code, 'Coding', Colors.lightBlueAccent),
+            ],
+          ),
+          const SizedBox(height: 32),
+          Text(
+            'Try prompts',
+            style: GoogleFonts.plusJakartaSans(
+              color: const Color(0xFF8F8F99),
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildTryPrompt(context, 'Create a prompt for writing viral tweets'),
+          _buildTryPrompt(context, 'Generate Midjourney image prompt'),
+          _buildTryPrompt(context, 'Create a marketing prompt for product launch'),
+          _buildTryPrompt(context, 'Generate AI prompt for a blog outline'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeCard(IconData icon, String title, Color iconColor) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C24),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: iconColor, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTryPrompt(BuildContext context, String text) {
+    return InkWell(
+      onTap: () => _sendPrompt(context, text),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        child: Row(
+          children: [
+            Container(
+              width: 8, height: 8,
+              decoration: const BoxDecoration(
+                color: Color(0xFF8F8F99),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                text,
+                style: GoogleFonts.plusJakartaSans(
+                  color: const Color(0xFF8F8F99),
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -153,7 +437,7 @@ class MessageBubble extends StatelessWidget {
   void _showOptionsSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: const Color(0xFF1C1C24),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -218,8 +502,8 @@ class MessageBubble extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: message.isUser
-                      ? Colors.deepPurple
-                      : const Color(0xFF1E1E1E),
+                      ? Theme.of(context).primaryColor
+                      : const Color(0xFF1C1C24),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Column(
@@ -278,14 +562,27 @@ class MessageBubble extends StatelessWidget {
                       ),
                     MarkdownBody(
                       data: message.text.split('\n\n=== Document Content ===').first,
-                      styleSheet:
-                          MarkdownStyleSheet.fromTheme(
-                            Theme.of(context),
-                          ).copyWith(
-                            p: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.white,
-                            ),
-                          ),
+                      softLineBreak: true,
+                      builders: {
+                        'pre': _CopyableCodeBlockBuilder(),
+                      },
+                      styleSheet: MarkdownStyleSheet.fromTheme(
+                        Theme.of(context),
+                      ).copyWith(
+                        p: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white,
+                        ),
+                        code: GoogleFonts.sourceCodePro(
+                          fontSize: 13,
+                          color: Colors.white,
+                        ),
+                        codeblockDecoration: BoxDecoration(
+                          color: const Color(0xFF111118),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        codeblockPadding: const EdgeInsets.all(14),
+                        blockSpacing: 8,
+                      ),
                     ),
                     if (!message.isUser)
                       Row(
@@ -478,7 +775,7 @@ class _ChatInputFieldState extends State<ChatInputField> {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      color: const Color(0xFF1E1E1E),
+      color: const Color(0xFF1C1C24),
       child: Column(
         children: [
           if (chatProvider.isResponding)
@@ -562,47 +859,67 @@ class _ChatInputFieldState extends State<ChatInputField> {
               ),
             ),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              IconButton(
-                icon: const Icon(Icons.image, color: Colors.white70),
-                onPressed: () async {
-                  var status = await Permission.photos.status;
-                  if (!status.isGranted) {
-                    await Permission.photos.request();
-                  }
-                  final ImagePicker picker = ImagePicker();
-                  final XFile? image = await picker.pickImage(
-                    source: ImageSource.gallery,
-                  );
-                  if (image != null) {
-                    setState(() {
-                      _selectedImagePath = image.path;
-                      _selectedDocumentPath = null;
-                      _selectedDocumentName = null;
-                    });
-                  }
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.attach_file, color: Colors.white70),
-                onPressed: () async {
-                  FilePickerResult? result = await FilePicker.platform.pickFiles(
-                    type: FileType.custom,
-                    allowedExtensions: ['pdf', 'txt'],
-                  );
+              // Media & Document attachment buttons
+              Container(
+                margin: const EdgeInsets.only(right: 8, bottom: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A2A35),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.image_outlined, color: Colors.white70, size: 22),
+                      tooltip: 'Attach Image',
+                      onPressed: () async {
+                        var status = await Permission.photos.status;
+                        if (!status.isGranted) {
+                          await Permission.photos.request();
+                        }
+                        final ImagePicker picker = ImagePicker();
+                        final XFile? image = await picker.pickImage(
+                          source: ImageSource.gallery,
+                        );
+                        if (image != null) {
+                          setState(() {
+                            _selectedImagePath = image.path;
+                            _selectedDocumentPath = null;
+                            _selectedDocumentName = null;
+                          });
+                        }
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.attach_file_rounded, color: Colors.white70, size: 22),
+                      tooltip: 'Attach Document',
+                      onPressed: () async {
+                        FilePickerResult? result = await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: ['pdf', 'txt'],
+                        );
 
-                  if (result != null && result.files.single.path != null) {
-                    setState(() {
-                      _selectedDocumentPath = result.files.single.path;
-                      _selectedDocumentName = result.files.single.name;
-                      _selectedImagePath = null;
-                    });
-                  }
-                },
+                        if (result != null && result.files.single.path != null) {
+                          setState(() {
+                            _selectedDocumentPath = result.files.single.path;
+                            _selectedDocumentName = result.files.single.name;
+                            _selectedImagePath = null;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
+              // Expanding Text Input
               Expanded(
                 child: TextField(
                   controller: _controller,
+                  minLines: 1,
+                  maxLines: 5,
+                  textInputAction: TextInputAction.newline,
                   onChanged: (text) {
                     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
                     if (chatProvider.isContinuousVoiceMode) {
@@ -620,76 +937,77 @@ class _ChatInputFieldState extends State<ChatInputField> {
                       setState(() {
                         _isListening = false;
                       });
+                    } else {
+                      // Rebuild so mic ↔ send icon updates on every keystroke
+                      setState(() {});
                     }
                   },
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: 'Send a message',
+                    hintText: 'Message Vakya Pro...',
                     hintStyle: const TextStyle(color: Colors.white38),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      borderRadius: BorderRadius.circular(24),
                       borderSide: BorderSide.none,
                     ),
                     filled: true,
-                    fillColor: const Color(0xFF2C2C2C),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                    fillColor: const Color(0xFF2A2A35),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              if (chatProvider.isContinuousVoiceMode)
-                TextButton(
-                  onPressed: () {
-                    chatProvider.setContinuousVoiceMode(false);
-                    _speechToText.stop();
-                    if (chatProvider.isResponding) chatProvider.stopResponding();
-                    setState(() {
-                      _isListening = false;
-                    });
-                  },
-                  child: const Text(
-                    'End',
-                    style: TextStyle(
-                      color: Colors.redAccent,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+              
+              // Voice / Send buttons
+              Container(
+                margin: const EdgeInsets.only(bottom: 4),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF3B2E7E), Color(0xFF4A60D4)],
                   ),
-                )
-              else
-                IconButton(
-                  icon: const Icon(Icons.graphic_eq, color: Colors.white),
-                  onPressed: () {
-                    chatProvider.setContinuousVoiceMode(true);
-                    startListening();
-                  },
                 ),
-              IconButton(
-                icon: const FaIcon(
-                  FontAwesomeIcons.paperPlane,
-                  color: Colors.white,
-                ),
-                onPressed: () {
-                  if (_controller.text.isNotEmpty ||
-                      _selectedImagePath != null || _selectedDocumentPath != null) {
-                    final text = _controller.text.trim();
-                    if (text.isNotEmpty || _selectedImagePath != null || _selectedDocumentPath != null) {
-                      chatProvider.sendMessage(
-                        text,
-                        imagePath: _selectedImagePath,
-                        documentPath: _selectedDocumentPath,
-                        documentName: _selectedDocumentName,
-                      );
-                      _controller.clear();
-                      setState(() {
-                        _selectedImagePath = null;
-                        _selectedDocumentPath = null;
-                        _selectedDocumentName = null;
-                      });
-                    }
-                    _lastWords = '';
-                  }
-                },
+                child: chatProvider.isContinuousVoiceMode
+                  ? IconButton(
+                      onPressed: () {
+                        chatProvider.setContinuousVoiceMode(false);
+                        _speechToText.stop();
+                        if (chatProvider.isResponding) chatProvider.stopResponding();
+                        setState(() {
+                          _isListening = false;
+                        });
+                      },
+                      icon: const Icon(Icons.stop_rounded, color: Colors.redAccent),
+                      tooltip: 'End Voice Mode',
+                    )
+                  : IconButton(
+                      icon: _controller.text.trim().isEmpty && _selectedImagePath == null && _selectedDocumentPath == null
+                          ? const Icon(Icons.mic_none_rounded, color: Colors.white)
+                          : const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+                      onPressed: () {
+                        if (_controller.text.trim().isEmpty && _selectedImagePath == null && _selectedDocumentPath == null) {
+                           // Voice mode
+                           chatProvider.setContinuousVoiceMode(true);
+                           startListening();
+                        } else {
+                          // Send Message
+                          final text = _controller.text.trim();
+                          chatProvider.sendMessage(
+                            text,
+                            imagePath: _selectedImagePath,
+                            documentPath: _selectedDocumentPath,
+                            documentName: _selectedDocumentName,
+                          );
+                          _controller.clear();
+                          setState(() {
+                            _selectedImagePath = null;
+                            _selectedDocumentPath = null;
+                            _selectedDocumentName = null;
+                          });
+                          _lastWords = '';
+                        }
+                      },
+                    ),
               ),
             ],
           ),
@@ -702,5 +1020,112 @@ class _ChatInputFieldState extends State<ChatInputField> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+}
+
+/// Custom markdown builder that wraps every fenced code block
+/// with a dark container and a one-tap Copy button.
+class _CopyableCodeBlockBuilder extends MarkdownElementBuilder {
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    // 'pre' element wraps the inner 'code' element
+    final rawText = element.textContent;
+    // Strip leading/trailing whitespace that the markdown parser adds
+    final codeText = rawText.trimRight();
+
+    return _CopyableCodeBlock(codeText: codeText);
+  }
+}
+
+class _CopyableCodeBlock extends StatefulWidget {
+  final String codeText;
+  const _CopyableCodeBlock({required this.codeText});
+
+  @override
+  State<_CopyableCodeBlock> createState() => _CopyableCodeBlockState();
+}
+
+class _CopyableCodeBlockState extends State<_CopyableCodeBlock> {
+  bool _copied = false;
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: widget.codeText));
+    if (!mounted) return;
+    setState(() => _copied = true);
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => _copied = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111118),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header bar with copy button
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1C1C2E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'prompt',
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _copy,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _copied
+                        ? const Row(
+                            key: ValueKey('done'),
+                            children: [
+                              Icon(Icons.check_rounded, size: 14, color: Colors.greenAccent),
+                              SizedBox(width: 4),
+                              Text('Copied', style: TextStyle(color: Colors.greenAccent, fontSize: 12)),
+                            ],
+                          )
+                        : const Row(
+                            key: ValueKey('copy'),
+                            children: [
+                              Icon(Icons.copy_rounded, size: 14, color: Colors.white54),
+                              SizedBox(width: 4),
+                              Text('Copy', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                            ],
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Code content
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: SelectableText(
+              widget.codeText,
+              style: GoogleFonts.sourceCodePro(
+                fontSize: 13,
+                color: Colors.white,
+                height: 1.55,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

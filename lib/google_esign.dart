@@ -1,20 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:developer' as developer;
 
 class GoogleESign {
-  final supabase = Supabase.instance.client;
+  GoogleESign();
 
   Future<void> signInWithGoogle() async {
-    try {
-      await supabase.auth.signInWithOAuth(
-        OAuthProvider.google,
-        authScreenLaunchMode: LaunchMode.externalApplication,
-        redirectTo: 'com.example.myapp://login-callback/',
-      );
-    } catch (e) {
-      // This will catch any errors during the launch of the webview.
-      // The actual sign-in errors will be handled by the auth stream listener.
-      debugPrint('Error launching Google Sign-In: $e');
-    }
+    developer.log('Google Sign-In is temporarily disabled.');
+    throw Exception('Google Sign-In is not currently available via the new API.');
+  }
+
+  Future<void> signOut() async {
+    //
   }
 }
