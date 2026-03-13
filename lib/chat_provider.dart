@@ -7,6 +7,8 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:myapp/services/api_service.dart';
+import 'package:myapp/utils/app_localization.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'chat_page.dart';
 
 class ChatProvider with ChangeNotifier {
@@ -31,11 +33,40 @@ class ChatProvider with ChangeNotifier {
   // Tracks the LOCAL uuid of the current session (used for in-memory lookup)
   String? _currentSessionLocalId;
 
+  String _appLanguage = 'English';
+  String get appLanguage => _appLanguage;
+  
+  AppLocalization get l10n => AppLocalization(_appLanguage);
+
   List<ChatSession> get chatHistory => _chatHistory;
+
+  String get currentChatLanguage => _appLanguage;
+
+  Future<void> setAppLanguage(String language) async {
+    _appLanguage = language;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('app_language', language);
+    
+    // Update TTS locale for the new language
+    await _updateTtsLanguage();
+    
+    notifyListeners();
+  }
+
+  // Keep for compatibility but redirect to global
+  void setChatLanguage(String language) => setAppLanguage(language);
 
   ChatProvider() {
     _initTts();
+    _loadLanguage();
     _loadChats(); // Load natively if token exists
+  }
+
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    _appLanguage = prefs.getString('app_language') ?? 'English';
+    await _updateTtsLanguage();
+    notifyListeners();
   }
 
   void initializeAfterAuth() {
@@ -193,8 +224,24 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
+  Future<void> _updateTtsLanguage() async {
+    String locale = 'en-US';
+    switch (_appLanguage) {
+      case 'Hindi': locale = 'hi-IN'; break;
+      case 'Marathi': locale = 'mr-IN'; break;
+      case 'Gujarati': locale = 'gu-IN'; break;
+      case 'Tamil': locale = 'ta-IN'; break;
+      case 'Telugu': locale = 'te-IN'; break;
+      case 'Bengali': locale = 'bn-IN'; break;
+      case 'Kannada': locale = 'kn-IN'; break;
+      case 'Malayalam': locale = 'ml-IN'; break;
+      case 'Punjabi': locale = 'pa-IN'; break;
+    }
+    await _flutterTts.setLanguage(locale);
+  }
+
   Future<void> _initTts() async {
-    await _flutterTts.setLanguage("en-US");
+    await _updateTtsLanguage();
     await _flutterTts.setSpeechRate(0.5);
     await _flutterTts.setVolume(1.0);
     await _flutterTts.setPitch(1.0);
@@ -258,6 +305,12 @@ class ChatProvider with ChangeNotifier {
       - Never say you created an image.
       - Only generate prompts.
       - If a user asks you to generate an image, you must reply EXACTLY with: "sorry, i cant generate images. Use only for prompt generation."
+
+      IMPORTANT LANGUAGE RULE:
+      - ALWAYS respond consistently and fluently in $_appLanguage, regardless of the language the user types in.
+      - If the user types in Hindi, you still reply in $_appLanguage. 
+      - If the user types in a mix of English and another language, you still reply ONLY in $_appLanguage.
+      - This applies to both the final prompt and your conversational guidance.
 
       Conversation style:
       You guide users step-by-step like a friendly interviewer.
@@ -413,21 +466,37 @@ class ChatProvider with ChangeNotifier {
         }
 
       } else {
-        // Standard Text AI Chat (Non-stream since we skipped SSE implementation for now)
+        // AI Chat with Streaming
         final history = _buildMessageHistory(forVoice: isVoiceInput);
-        final response = await _apiService.aiChat(history);
+        final stream = _apiService.aiChatStream(history);
         
-        final aiText = response['content']?.toString() ?? 'Error: Invalid response format';
+        String accumulatedText = '';
+        bool isFirstChunk = true;
 
-        _messages[aiMessageIndex] = Message(
-          text: aiText,
-          isUser: false,
-        );
-        notifyListeners();
+        await for (final chunk in stream) {
+          if (isFirstChunk) {
+            // Clear the "..." processing indicator
+            _messages[aiMessageIndex] = Message(text: '', isUser: false);
+            isFirstChunk = false;
+          }
+          
+          accumulatedText += chunk;
+          _messages[aiMessageIndex] = Message(
+            text: accumulatedText,
+            isUser: false,
+          );
+          notifyListeners();
 
-        if (isVoiceInput) {
+          if (isVoiceInput) {
+            // For voice, we typically want to speak in sentences.
+            // Simplified here: we'll just handle the final text for speak 
+            // after the stream finishes, or we could split by punctuation here.
+          }
+        }
+
+        if (isVoiceInput && accumulatedText.isNotEmpty) {
           final splitPattern = RegExp(r'(?<=[.!?])\s+|\n');
-          final parts = aiText.split(splitPattern);
+          final parts = accumulatedText.split(splitPattern);
           for (final part in parts) {
             if (part.trim().isNotEmpty) {
               _ttsQueue.add(part.trim());
@@ -444,7 +513,7 @@ class ChatProvider with ChangeNotifier {
       }
     } catch (e, s) {
       developer.log(
-        'Error sending message to OpenAI',
+        'Error during AI communication',
         error: e,
         stackTrace: s,
         name: 'ChatProvider',
@@ -548,12 +617,14 @@ class ChatSession {
 
   String title;
   List<Message> messages;
+  String language;
 
   ChatSession({
     required this.localId,
     this.backendId,
     required this.title,
     required this.messages,
+    this.language = 'English',
   });
 
   /// Used only for local serialisation (if needed for UI).
@@ -562,6 +633,7 @@ class ChatSession {
     'backendId': backendId,
     'title': title,
     'messages': messages.map((m) => m.toJson()).toList(),
+    'language': language,
   };
 
   /// Parses a session returned by GET /chat-sessions.
@@ -587,6 +659,7 @@ class ChatSession {
       backendId: backendId,
       title: json['title']?.toString() ?? 'Chat',
       messages: messages,
+      language: json['language']?.toString() ?? 'English',
     );
   }
 }

@@ -8,10 +8,11 @@ Note: Admin APIs are excluded as the app is for end-users only.
 
 ---
 
-## � Common Requirements
+## Common Requirements
 
 - Headers
   - `Content-Type: application/json`
+  - `Accept: application/json`
   - For protected endpoints: `Authorization: Bearer <access_token>`
 - Auth Tokens
   - Issued by login/register endpoints (Laravel Sanctum)
@@ -21,7 +22,24 @@ Note: Admin APIs are excluded as the app is for end-users only.
 
 ---
 
-## �🔐 1. Authentication (Public)
+## ✅ Mobile App Integration Notes (Android/Flutter)
+
+- Base URL
+  - Use `https://api.vakyapro.com` as Base URL
+  - All endpoints are under `/api` (example: `https://api.vakyapro.com/api/app-settings`)
+- Always send JSON headers
+  - Missing `Accept: application/json` can cause non-JSON (HTML/redirect) responses from Laravel, which breaks JSON parsing in the app
+- Chat sessions ID type
+  - `/api/chat-sessions/{chatSession}` expects backend session identifier (normally numeric `id`)
+  - Do not generate a UUID locally and use it in `{chatSession}` unless backend explicitly supports UUID routing
+- Recommended chat persistence flow
+  - On first message (or when starting a new chat), call `POST /api/chat-sessions` and store returned session `id`
+  - For every subsequent message/AI reply, call `PUT /api/chat-sessions/{id}` using the stored backend `id`
+  - Keep “current session id” in app state aligned with the backend `id` returned from create
+
+---
+
+## 🔐 1. Authentication (Public)
 
 ### Register New User
 Create a new user account.
@@ -79,6 +97,21 @@ Login or Register using Google Sign-In.
   }
   ```
 - **Response**: Same as Login (returns access_token).
+
+**Google Cloud Setup (APK + Backend)**
+- **APK/Flutter**:
+  - Google Cloud Console → Credentials:
+    - Create **OAuth Client ID (Android)** with:
+      - Android package name
+      - SHA-1 fingerprint
+    - Create/Use **OAuth Client ID (Web application)** (only Client ID needed) and set it in app as `serverClientId` so that app can receive `idToken`.
+- **Backend**:
+  - Set `.env`:
+    - `GOOGLE_CLIENT_ID=<WEB_CLIENT_ID>`
+
+**Important**
+- Is flow me **client secret ki zarurat nahi**.
+- Is flow me **callback route** (`/auth/google/callback` ya `/api/auth/google/callback`) use nahi hota. App directly `POST /api/auth/google` call karti hai.
 
 ---
 
@@ -260,6 +293,10 @@ Flutter ke image generation jaisa flow backend se.
 
 App chat history ko backend me save/restore karne ke liye.
 
+**Important**:
+- `{chatSession}` should be the backend session identifier (usually numeric `id` returned by `POST /api/chat-sessions`)
+- If the app generates a UUID locally for session id, it will not match backend routes/tables unless backend supports UUIDs
+
 ### List Sessions
 - **Endpoint**: `GET /api/chat-sessions`
 
@@ -297,6 +334,55 @@ App chat history ko backend me save/restore karne ke liye.
 ---
 
 ## 💳 6. Plans & Data (Public)
+
+### App Settings (Key/Value)
+Mobile app ke dynamic content (e.g. onboarding screens) ke liye key/value settings.
+
+- **Endpoint**: `GET /api/app-settings`
+- **Query (Optional)**:
+  - `prefix=onboarding_` (e.g. only onboarding keys)
+  - `keys[]=onboarding_slide1_title&keys[]=onboarding_slide1_text`
+- **Response**:
+  ```json
+  {
+    "data": [
+      { "setting_key": "onboarding_slide1_title", "setting_value": "Welcome to VakyaPro" }
+    ]
+  }
+  ```
+
+### Onboarding Slides (Recommended Keys)
+Onboarding ko 1 slide = 3 keys ke tarike se manage karein:
+
+- `onboarding_slide1_title`
+- `onboarding_slide1_text`
+- `onboarding_slide1_image`
+- `onboarding_slide1_active` (`1` = active, `0` = inactive)
+- `onboarding_slide2_title`
+- `onboarding_slide2_text`
+- `onboarding_slide2_image`
+- `onboarding_slide2_active` (`1` = active, `0` = inactive)
+- …
+
+**Image value format**:
+- `setting_value` me full URL aata hai (example): `https://api.vakyapro.com/storage/app-settings/<filename>.jpg`
+- App me direct image load kar sakte ho (Flutter: `Image.network(url)`).
+
+**Example (fetch all onboarding keys)**:
+- `GET /api/app-settings?prefix=onboarding_`
+
+**App behavior**
+- App ko slides render karte time `onboarding_slideN_active` agar `0` ho to slide hide kar dena chahiye.
+- Delete karne par us slide ke keys remove ho jate hain, to app ko us index ko ignore karna chahiye.
+
+### Get Single Setting
+- **Endpoint**: `GET /api/app-settings/{settingKey}`
+- **Response**:
+  ```json
+  {
+    "data": { "setting_key": "onboarding_slide1_title", "setting_value": "Welcome to VakyaPro" }
+  }
+  ```
 
 ### Get Subscription Plans
 List all available plans for upgrade screen.

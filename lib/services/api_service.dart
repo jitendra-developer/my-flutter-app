@@ -60,7 +60,25 @@ class ApiService {
 
   Future<bool> hasToken() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.containsKey(_tokenKey);
+    final token = prefs.getString(_tokenKey);
+    return token != null && token.isNotEmpty;
+  }
+
+  Future<Map<String, dynamic>> register(String name, String email, String password) async {
+    final url = Uri.parse('$baseUrl/auth/register');
+    final response = await http.post(
+      url,
+      headers: await _getHeaders(),
+      body: json.encode({
+        'name': name,
+        'email': email,
+        'password': password,
+        'password_confirmation': password,
+      }),
+    );
+    final data = _handleResponse(response);
+    if (data['access_token'] != null) await saveToken(data['access_token']);
+    return data;
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
@@ -186,9 +204,52 @@ class ApiService {
     final response = await http.post(
       url,
       headers: await _getHeaders(isAuth: true),
-      body: json.encode({'messages': messages}),
+      body: json.encode({'messages': messages, 'stream': false}),
     );
     return _handleResponse(response);
+  }
+
+  /// AI Chat with Streaming (SSE)
+  Stream<String> aiChatStream(List<Map<String, dynamic>> messages) async* {
+    final url = Uri.parse('$baseUrl/ai/chat/stream');
+    final client = http.Client();
+    final request = http.Request('POST', url);
+    request.headers.addAll(await _getHeaders(isAuth: true));
+    request.headers['Accept'] = 'text/event-stream';
+    request.headers['Cache-Control'] = 'no-cache';
+    request.body = json.encode({'messages': messages});
+
+    final response = await client.send(request);
+
+    if (response.statusCode != 200) {
+      final body = await response.stream.bytesToString();
+      client.close();
+      throw Exception('Streaming failed: ${response.statusCode} - $body');
+    }
+
+    // Process SSE stream
+    await for (final line in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+      if (line.trim().isEmpty) continue;
+      if (line.startsWith('data: ')) {
+        final data = line.substring(6).trim();
+        if (data == '[DONE]') {
+          break;
+        }
+        try {
+          final decoded = json.decode(data);
+          // Look for 'content' or typical OpenAI 'choices' structure
+          final content = decoded['content'] ?? 
+                         (decoded['choices']?[0]?['delta']?['content'] ?? '');
+          if (content.isNotEmpty) {
+            yield content;
+          }
+        } catch (e) {
+          // If it's not JSON, it might be raw text
+          yield data;
+        }
+      }
+    }
+    client.close();
   }
 
   Future<Map<String, dynamic>> generateImage(String prompt, {String size = '1024x1024'}) async {
@@ -217,6 +278,12 @@ class ApiService {
       headers: await _getHeaders(isAuth: true),
       body: json.encode({'title': title, 'messages': messages}),
     );
+    return _handleResponse(response);
+  }
+
+  Future<Map<String, dynamic>> getChatSession(String sessionId) async {
+    final url = Uri.parse('$baseUrl/chat-sessions/$sessionId');
+    final response = await http.get(url, headers: await _getHeaders(isAuth: true));
     return _handleResponse(response);
   }
 

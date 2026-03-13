@@ -5,6 +5,8 @@ import 'dart:developer' as developer;
 import 'package:myapp/google_esign.dart';
 import 'package:myapp/utils.dart';
 import 'package:myapp/services/api_service.dart';
+import 'package:myapp/chat_provider.dart';
+import 'package:provider/provider.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -292,6 +294,16 @@ class _RegisterPageState extends State<RegisterPage> {
         try {
           if (type == 'google') {
             await _googleESign.signInWithGoogle();
+            
+            // Navigate on success
+            if (mounted) {
+              final apiService = ApiService();
+              if (await apiService.hasToken()) {
+                 developer.log('Google login confirmed, navigating to chat');
+                 Provider.of<ChatProvider>(context, listen: false).initializeAfterAuth();
+                 context.go('/chat');
+              }
+            }
           } else if (type == 'facebook') {
             showFeedback(
               context,

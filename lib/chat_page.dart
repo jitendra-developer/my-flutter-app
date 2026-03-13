@@ -13,6 +13,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 import 'package:myapp/services/api_service.dart'; // Added import
 import 'chat_provider.dart';
@@ -67,7 +68,7 @@ class _ChatPageState extends State<ChatPage> {
             const SizedBox(height: 20),
             ListTile(
               leading: const Icon(Icons.add_circle_outline, color: Colors.white),
-              title: const Text('New Chat', style: TextStyle(color: Colors.white, fontSize: 16)),
+              title: Text(chatProvider.l10n.translate('new_chat'), style: const TextStyle(color: Colors.white, fontSize: 16)),
               onTap: () {
                 Navigator.pop(context);
                 final cp = Provider.of<ChatProvider>(context, listen: false);
@@ -78,7 +79,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
             ListTile(
               leading: const Icon(Icons.list_alt, color: Colors.white),
-              title: const Text('Pre Prompts', style: TextStyle(color: Colors.white, fontSize: 16)),
+              title: Text(chatProvider.l10n.translate('pre_prompts'), style: const TextStyle(color: Colors.white, fontSize: 16)),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -90,7 +91,7 @@ class _ChatPageState extends State<ChatPage> {
             const Divider(color: Colors.white24),
             ListTile(
               leading: const Icon(Icons.history, color: Colors.white),
-              title: const Text('Recent Chats', style: TextStyle(color: Colors.white, fontSize: 16)),
+              title: Text(chatProvider.l10n.translate('recent_chats'), style: const TextStyle(color: Colors.white, fontSize: 16)),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -126,34 +127,50 @@ class _ChatPageState extends State<ChatPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text('Log Out', style: TextStyle(color: Colors.redAccent, fontSize: 16)),
+              leading: const Icon(Icons.settings, color: Colors.white),
+              title: Text(chatProvider.l10n.translate('settings'), style: const TextStyle(color: Colors.white, fontSize: 16)),
               onTap: () {
                 Navigator.pop(context);
+                context.push('/settings');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.redAccent),
+              title: Text(chatProvider.l10n.translate('logout'), style: const TextStyle(color: Colors.redAccent, fontSize: 16)),
+              onTap: () {
+                Navigator.pop(context);
+                final l10n = chatProvider.l10n;
                 showDialog(
                   context: context,
                   builder: (BuildContext context) {
                     return AlertDialog(
                       backgroundColor: const Color(0xFF2C2C2C),
-                      title: const Text('Log Out', style: TextStyle(color: Colors.white)),
-                      content: const Text('Are you sure you want to log out?', style: TextStyle(color: Colors.white70)),
+                      title: Text(l10n.translate('logout'), style: const TextStyle(color: Colors.white)),
+                      content: Text(l10n.translate('confirm_logout'), style: const TextStyle(color: Colors.white70)),
                       actions: <Widget>[
                         TextButton(
                           onPressed: () {
                             Navigator.of(context).pop();
                           },
-                          child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                          child: Text(l10n.translate('cancel'), style: const TextStyle(color: Colors.white70)),
                         ),
                         TextButton(
                           onPressed: () async {
                             Navigator.of(context).pop(); // Close dialog
+                            
+                            // Important: Clear local session state first
                             Provider.of<ChatProvider>(context, listen: false).clearOnLogout();
-                            await _apiService.logout(); // Used ApiService.logout
-                            if (context.mounted) {
-                              context.go('/login'); // Used context.go
+                            
+                            // Then notify backend and redirect to main auth hub
+                            try {
+                              await _apiService.logout();
+                            } finally {
+                              if (context.mounted) {
+                                context.go('/login');
+                              }
                             }
                           },
-                          child: const Text('Yes', style: TextStyle(color: Colors.redAccent)),
+                          child: Text(l10n.translate('yes'), style: const TextStyle(color: Colors.redAccent)),
                         ),
                       ],
                     );
@@ -576,31 +593,40 @@ class MessageBubble extends StatelessWidget {
                           ],
                         ),
                       ),
-                    MarkdownBody(
-                      data: message.text.split('\n\n=== Document Content ===').first,
-                      softLineBreak: true,
-                      builders: {
-                        'pre': _CopyableCodeBlockBuilder(),
-                      },
-                      styleSheet: MarkdownStyleSheet.fromTheme(
-                        Theme.of(context),
-                      ).copyWith(
-                        p: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white,
+                    if (message.text == '...') 
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: SpinKitThreeBounce(
+                          color: Colors.white70,
+                          size: 20.0,
                         ),
-                        code: GoogleFonts.sourceCodePro(
-                          fontSize: 13,
-                          color: Colors.white,
+                      )
+                    else 
+                      MarkdownBody(
+                        data: message.text.split('\n\n=== Document Content ===').first,
+                        softLineBreak: true,
+                        builders: {
+                          'pre': _CopyableCodeBlockBuilder(),
+                        },
+                        styleSheet: MarkdownStyleSheet.fromTheme(
+                          Theme.of(context),
+                        ).copyWith(
+                          p: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.white,
+                          ),
+                          code: GoogleFonts.sourceCodePro(
+                            fontSize: 13,
+                            color: Colors.white,
+                          ),
+                          codeblockDecoration: BoxDecoration(
+                            color: const Color(0xFF111118),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          codeblockPadding: const EdgeInsets.all(14),
+                          blockSpacing: 8,
                         ),
-                        codeblockDecoration: BoxDecoration(
-                          color: const Color(0xFF111118),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        codeblockPadding: const EdgeInsets.all(14),
-                        blockSpacing: 8,
                       ),
-                    ),
-                    if (!message.isUser)
+                    if (!message.isUser && message.text != '...')
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -964,7 +990,7 @@ class _ChatInputFieldState extends State<ChatInputField> {
                   },
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: 'Message Vakya Pro...',
+                    hintText: chatProvider.l10n.translate('type_message'),
                     hintStyle: const TextStyle(color: Colors.white38),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(24),

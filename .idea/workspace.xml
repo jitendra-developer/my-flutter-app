@@ -5,9 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="329e8fb6-b0f4-44db-9429-8433b29133ab" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/blueprint.md" beforeDir="false" afterPath="$PROJECT_DIR$/blueprint.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.flutter-plugins-dependencies" beforeDir="false" afterPath="$PROJECT_DIR$/.flutter-plugins-dependencies" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/APP_API_DOCS (1).md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/APP_API_DOCS (2).md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/APP_API_DOCS.md" beforeDir="false" afterPath="$PROJECT_DIR$/APP_API_DOCS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/UPDATE_LOG.txt" beforeDir="false" afterPath="$PROJECT_DIR$/UPDATE_LOG.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api_used.md" beforeDir="false" afterPath="$PROJECT_DIR$/api_used.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/chat_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/chat_page.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/chat_provider.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/chat_provider.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/google_esign.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/google_esign.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/login.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/login.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/login_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/login_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/main.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/register.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/register.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/services/api_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/services/api_service.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/macos/Flutter/GeneratedPluginRegistrant.swift" beforeDir="false" afterPath="$PROJECT_DIR$/macos/Flutter/GeneratedPluginRegistrant.swift" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pubspec.lock" beforeDir="false" afterPath="$PROJECT_DIR$/pubspec.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/pubspec.yaml" afterDir="false" />
     </list>
@@ -35,10 +47,22 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "customColor": "",
-  "associatedIndex": 5
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "Someshwar4898"
+  }
 }]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/jitendra-developer/my-flutter-app",
+    "accountId": "d2fcb949-a4bc-4a2a-83b7-295ac59a9c87"
+  }
+}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 5
+}</component>
   <component name="ProjectId" id="3AID40z91Lt3pPDUalYcN7XYkPp" />
   <component name="ProjectView">
     <navigator currentView="ProjectPane" proportions="" version="1" />
@@ -57,11 +81,15 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "finality",
     "io.flutter.project.isFirstOpen": "true",
+    "kotlin-language-version-configured": "true",
+    "settings.editor.selected.configurable": "templates.modelproviders.configurable",
     "show.migrate.to.gradle.popup": "false"
   }
 }]]></component>

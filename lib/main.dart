@@ -9,6 +9,8 @@ import 'package:myapp/register.dart';
 import 'package:myapp/screens/otp_verification_screen.dart';
 import 'package:myapp/welcome_page.dart';
 import 'package:myapp/screens/pre_prompts_page.dart';
+import 'package:myapp/screens/settings_page.dart';
+import 'package:myapp/screens/language_selection_page.dart';
 import 'package:myapp/services/api_service.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -86,6 +88,14 @@ class _MyAppState extends State<MyApp> {
             }
             return OtpVerificationScreen(email: email);
           },
+        ),
+        GoRoute(
+          path: '/settings',
+          builder: (context, state) => const SettingsPage(),
+        ),
+        GoRoute(
+          path: '/language-selection',
+          builder: (context, state) => const LanguageSelectionPage(),
         ),
       ],
       redirect: (context, state) async {

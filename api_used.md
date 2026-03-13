@@ -1,53 +1,47 @@
 # API Usage Documentation
 
-This document lists all the external APIs and services used within the Flutter application.
+This document lists the central backend API and external services used within the Vakya Pro Flutter application.
 
-## 1. Supabase API
-Supabase is used as the primary backend service for authentication and database management. The application utilizes the `supabase_flutter` package to interface with the Supabase environment.
+## 1. Vakya Pro Custom Backend API
+The application has migrated away from direct Supabase and OpenAI integrations in favor of a centralized custom backend. All authentication, data persistence, and AI logic are managed through this API.
+
+**Base URL**: `https://api.vakyapro.com/api`
 
 **Key Operations & Endpoints:**
-- **Authentication:**
-  - Email/Password Sign Up (`Supabase.instance.client.auth.signUp`)
-  - Email/Password Sign In (`Supabase.instance.client.auth.signInWithPassword`)
-  - OTP Verification (`Supabase.instance.client.auth.verifyOTP`)
-  - Resend OTP (`Supabase.instance.client.auth.resend`)
-  - Google OAuth Sign In (`Supabase.instance.client.auth.signInWithOAuth`)
-  - Sign Out (`Supabase.instance.client.auth.signOut`)
-  - Auth State Changes listener (`Supabase.instance.client.auth.onAuthStateChange`)
-- **Database:**
-  - **Profiles Table:** Inserting or modifying profile data upon user registration.
-  - **Chat Sessions Table:** Fetching, Upserting, and Deleting records within the `chat_sessions` table to save user chat history continuously.
+- **Authentication (Public):**
+  - Standard Register (`POST /auth/register`)
+  - Email OTP Register (`POST /auth/email/register`)
+  - OTP Verification (`POST /auth/email/verify`)
+  - Login (`POST /auth/login`)
+  - Google Social Login (`POST /auth/google`)
+- **User Profile (Protected):**
+  - Get Profile (`GET /auth/me`)
+  - Update Profile (`PUT /profile`)
+  - Logout (`POST /auth/logout`)
+- **AI Features (Protected):**
+  - AI Chat (Non-stream: `POST /ai/chat`, Stream: `POST /ai/chat/stream`)
+  - Image Generation (`POST /ai/image`)
+  - Prompt Generation/Refinement (`POST /prompts/generate`)
+- **Chat Sessions (Protected):**
+  - List/Create/Update/Delete sessions via `/chat-sessions` endpoints.
+- **App Data:**
+  - Dynamic App Settings (`GET /app-settings`)
+  - Subscription Plans (`GET /plans`)
 
 **Main Implementation Files:**
-- `lib/main.dart`
-- `lib/settings_service.dart`
-- `lib/register.dart`
-- `lib/login.dart`
-- `lib/google_esign.dart`
-- `lib/chat_provider.dart`
-- `lib/chat_page.dart`
-- `lib/phone_verification_page.dart`
-- `lib/screens/otp_verification_screen.dart`
+- `lib/services/api_service.dart` (Central API Client)
+- `lib/chat_provider.dart` (State management and AI logic)
+- `lib/login_page.dart`, `lib/register.dart`, `lib/screens/otp_verification_screen.dart` (Auth UI)
 
 ---
 
-## 2. OpenAI API
-OpenAI powers the core AI chat logic and image generation functionalities. The system connects via the `dart_openai` package using an API Key.
-
-**Key Operations & Endpoints:**
-- **Chat Completions:**
-  - Used for both standard context text responses and streaming chat completions (`OpenAI.instance.chat.create` and `OpenAI.instance.chat.createStream`).
-- **Image Generation:**
-  - Generating AI images based on given prompt requests (`OpenAI.instance.image.create`).
-
-**Main Implementation Files:**
-- `lib/main.dart` (Key Initialization)
-- `lib/chat_provider.dart` (Business Logic for Chat & Images)
+## 2. Google Sign-In SDK
+Used for retrieving OAuth ID tokens for social authentication.
+- **Main Implementation Files:** `lib/google_esign.dart`
 
 ---
 
 ## 3. Unsplash Network Images
-A list of direct Unsplash image URLs is used in the app to display vibrant placeholder/preview images.
+Direct Unsplash image URLs are used for UI placeholders and prompt previews.
+- **Main Implementation Files:** `lib/screens/pre_prompts_page.dart`
 
-**Main Implementation Files:**
-- `lib/screens/pre_prompts_page.dart`

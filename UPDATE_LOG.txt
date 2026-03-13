@@ -140,6 +140,31 @@ IMPROVEMENTS:
   - Added robust local fallbacks (default text & icons) to the `OnboardingScreen` so the UI remains beautiful even if the backend settings are empty or unreachable
 
 --------------------------------------------------------------------------------
+[BUILD 2.1.3] — Google Sign-In Integration
+Date: 2026-03-12
+--------------------------------------------------------------------------------
+NEW FEATURES & IMPROVEMENTS:
+  - Added official `google_sign_in` Flutter package
+  - Activated Google Sign-in buttons on Login, Register, and Welcome Auth Hub screens
+  - Implemented secure token retrieval (`idToken`) from Google SDK
+  - Integrated with backend `/api/auth/google` to exchange the Google token for an app session
+  - Seamless navigation to the Chat screen upon successful Google authentication
+
+--------------------------------------------------------------------------------
+[BUILD 2.2.0] — Chat Language Settings & UI Enhancements
+Date: 2026-03-13
+--------------------------------------------------------------------------------
+NEW FEATURES & IMPROVEMENTS:
+  - Added Settings option in the sidebar under User Profile.
+  - Implemented a "Language" selection page with numerous prominent Indian regional languages.
+  - Enabled per-chat language selection: The AI now consistently responds in the selected language regardless of input language.
+  - AI Thinking Animation: Integrated `flutter_spinkit` to show a professional bouncing dot animation ("SpinKitThreeBounce") when the AI is processing requests, replacing the plain text "..." placeholder.
+  - Global App Localization: Implemented a centralized localization system supporting 10 languages (English, Hindi, Marathi, etc.). Changing the language in settings now updates the entire app interface, the AI's response language (text and voice), and persists across app restarts.
+
+BUG FIXES:
+  - Fixed infinite logout loop on the Chat page. Updated routing to navigate explicitly to the main authentication hub (`/login`) to ensure a fresh session.
+
+--------------------------------------------------------------------------------
 [TEMPLATE FOR NEXT BUILD — copy and fill in]
 --------------------------------------------------------------------------------
 [BUILD X.X.X] — <Short Title>
