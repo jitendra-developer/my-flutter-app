@@ -165,19 +165,30 @@ BUG FIXES:
   - Fixed infinite logout loop on the Chat page. Updated routing to navigate explicitly to the main authentication hub (`/login`) to ensure a fresh session.
 
 --------------------------------------------------------------------------------
+[BUILD 2.3.0] — Advanced Localization & AI Language Control
+Date: 2026-03-13
+--------------------------------------------------------------------------------
+NEW FEATURES & IMPROVEMENTS:
+  - Global App Localization: Full integration of `AppLocalization` system with support for 10 regional Indian languages.
+  - AI Language Consistency: Strict enforcement of the selected language in AI responses via enhanced system prompt instructions.
+  - TTS Synchronization: Automatic locale switching for the `flutter_tts` engine to match the selected app language.
+  - UI Polish: Multi-language snackbar feedback dynamically updated when the language setting is changed.
+  - Google Sign-In Audit: Completed a comprehensive audit and verification of the Google OAuth integration flow for security and UX.
+
+--------------------------------------------------------------------------------
 [TEMPLATE FOR NEXT BUILD — copy and fill in]
 --------------------------------------------------------------------------------
 [BUILD X.X.X] — <Short Title>
 Date: YYYY-MM-DD
 --------------------------------------------------------------------------------
 NEW FEATURES:
-  -
+  - 
 
 IMPROVEMENTS:
-  -
+  - 
 
 BUG FIXES:
-  -
+  - 
 
 
 ================================================================================
