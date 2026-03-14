@@ -5,7 +5,20 @@
       "Bash(keytool -list -v -keystore \"%USERPROFILE%\\\\.android\\\\debug.keystore\" -alias androiddebugkey -storepass android -keypass android)",
       "Bash(keytool -list -v -keystore \"$USERPROFILE/.android/debug.keystore\" -alias androiddebugkey -storepass android -keypass android)",
       "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/keytool\" -list -v -keystore \"$USERPROFILE/.android/debug.keystore\" -alias androiddebugkey -storepass android -keypass android)",
-      "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/keytool.exe\" -list -v -keystore \"$USERPROFILE/.android/debug.keystore\" -alias androiddebugkey -storepass android -keypass android)"
+      "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/keytool.exe\" -list -v -keystore \"$USERPROFILE/.android/debug.keystore\" -alias androiddebugkey -storepass android -keypass android)",
+      "Bash(flutter emulators:*)",
+      "Bash(avdmanager list:*)",
+      "Bash(echo $ANDROID_HOME)",
+      "Read(//c/Users/HP/StudioProjects/my-flutter-app/$ANDROID_HOME/**)",
+      "Bash(flutter doctor:*)",
+      "Bash(\"/c/Users/HP/AppData/Local/Android/sdk/cmdline-tools/latest/bin/avdmanager\" list:*)",
+      "Bash(\"/c/Users/HP/AppData/Local/Android/sdk/cmdline-tools/latest/bin/avdmanager.bat\" list:*)",
+      "Bash(\"/c/Users/HP/AppData/Local/Android/sdk/cmdline-tools/latest/bin/avdmanager.bat\" create:*)",
+      "Bash(flutter devices:*)",
+      "Bash(cmd.exe /c \"start cmd /k \"\"cd /d C:\\\\Users\\\\HP\\\\StudioProjects\\\\my-flutter-app && flutter run -d emulator-5554\"\"\")",
+      "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\HP\\\\StudioProjects\\\\my-flutter-app && flutter run -d emulator-5554\")",
+      "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\HP\\\\StudioProjects\\\\my-flutter-app && flutter run -d emulator-5556\")",
+      "Bash(flutter run:*)"
     ]
   }
 }

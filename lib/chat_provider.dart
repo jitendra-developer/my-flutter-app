@@ -80,8 +80,6 @@ class ChatProvider with ChangeNotifier {
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     _appLanguage = prefs.getString('app_language') ?? 'en';
-    final token = prefs.getString('auth_token');
-    _isAuthenticated = token != null && token.isNotEmpty;
     await _updateTtsLanguage();
     notifyListeners();
   }

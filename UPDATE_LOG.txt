@@ -234,6 +234,26 @@ BUG FIXES:
     Console.
 
 --------------------------------------------------------------------------------
+[BUILD 2.4.2] — Auth Flow & Language Lock Fixes
+Date: 2026-03-14
+--------------------------------------------------------------------------------
+BUG FIXES:
+  - Fixed logged-in users being redirected to the welcome screen on app reopen.
+    Root cause: _loadLanguage() in ChatProvider was re-reading the auth token from
+    SharedPreferences asynchronously, overwriting the correct _isAuthenticated value
+    set at startup, then calling notifyListeners() which triggered a GoRouter redirect
+    with stale state. Fixed by removing the token re-check from _loadLanguage() —
+    auth state is now set once at startup via initialAuthenticated from main().
+  - Fixed Login page and Register page still translating when the user had a
+    non-English language selected. Both screens now use AppLocalization('en') directly
+    and are permanently locked to English, consistent with Welcome, Onboarding, and
+    AuthHub pages.
+
+IMPROVEMENTS:
+  - Auth state is now single-source-of-truth: set in main() before the app renders,
+    passed to ChatProvider constructor, never overwritten by background async tasks.
+
+--------------------------------------------------------------------------------
 [TEMPLATE FOR NEXT BUILD — copy and fill in]
 --------------------------------------------------------------------------------
 [BUILD X.X.X] — <Short Title>

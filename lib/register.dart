@@ -68,8 +68,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    final chatProvider = Provider.of<ChatProvider>(context);
-    final l10n = chatProvider.l10n;
+    final l10n = AppLocalization('en');
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
