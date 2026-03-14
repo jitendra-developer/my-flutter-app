@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -17,6 +17,7 @@ class WelcomePage extends StatelessWidget {
             const SizedBox(height: 40),
             Text(
               'Welcome to Vakya Pro',
+              textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
@@ -25,7 +26,7 @@ class WelcomePage extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'Start chatting with Vakya Pro now.\nYou can ask me anything.',
+              'Your AI-powered prompt generation assistant',
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 16,
@@ -35,7 +36,7 @@ class WelcomePage extends StatelessWidget {
             const SizedBox(height: 60),
             ElevatedButton(
               onPressed: () {
-                context.go('/onboarding'); // CORRECTED to use go_router
+                context.go('/onboarding');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,

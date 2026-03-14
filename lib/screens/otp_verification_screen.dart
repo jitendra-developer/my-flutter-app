@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pinput/pinput.dart';
+import 'package:provider/provider.dart';
+import 'package:myapp/chat_provider.dart';
 import 'package:myapp/services/api_service.dart';
 import 'package:myapp/utils.dart';
 import 'dart:developer' as developer;
@@ -34,6 +36,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       
       developer.log('OTP verification successful');
       if (mounted) {
+        Provider.of<ChatProvider>(context, listen: false).initializeAfterAuth();
         context.go('/chat');
       }
     } catch (e) {

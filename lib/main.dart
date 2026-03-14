@@ -8,11 +8,11 @@ import 'package:myapp/onboarding_screen.dart';
 import 'package:myapp/register.dart';
 import 'package:myapp/screens/otp_verification_screen.dart';
 import 'package:myapp/welcome_page.dart';
-import 'package:myapp/screens/pre_prompts_page.dart';
 import 'package:myapp/screens/settings_page.dart';
 import 'package:myapp/screens/language_selection_page.dart';
 import 'package:myapp/services/api_service.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer' as developer;
 
@@ -33,9 +33,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) {
-          final provider = ChatProvider();
-          if (hasToken) provider.initializeAfterAuth();
-          return provider;
+          return ChatProvider(initialAuthenticated: hasToken);
         }),
       ],
       child: MyApp(initialRoute: hasToken ? '/chat' : '/welcome'),
@@ -60,6 +58,7 @@ class _MyAppState extends State<MyApp> {
 
     _router = GoRouter(
       initialLocation: widget.initialRoute,
+      refreshListenable: Provider.of<ChatProvider>(context, listen: false),
       routes: [
         GoRoute(path: '/welcome', builder: (context, state) => const WelcomePage()),
         GoRoute(
@@ -99,7 +98,8 @@ class _MyAppState extends State<MyApp> {
         ),
       ],
       redirect: (context, state) async {
-        final hasSession = await ApiService().hasToken();
+        final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+        final hasSession = chatProvider.isAuthenticated;
         
         final isAuthRoute =
             state.uri.path == '/login' ||
@@ -111,45 +111,72 @@ class _MyAppState extends State<MyApp> {
             state.uri.path == '/welcome' || state.uri.path == '/onboarding';
 
         if (!hasSession) {
+          // If NOT logged in:
+          // Allow access to welcome, onboarding, and auth routes
           if (isPublicRoute || isAuthRoute) {
             return null;
           }
+          // Redirect everything else to login
           return '/login';
+        } else {
+          // If logged in:
+          // Prevent access to login/onboarding, redirect to chat
+          if (isAuthRoute || isPublicRoute) {
+            return '/chat';
+          }
+          // Allow all other routes (chat, settings, etc.)
+          return null;
         }
-
-        if (isAuthRoute || isPublicRoute) {
-          return '/chat';
-        }
-
-        return null;
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Vakya Pro',
-      theme: ThemeData.dark().copyWith(
-        primaryColor: const Color(0xFF4A60D4),
-        scaffoldBackgroundColor: const Color(0xFF13131A),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF4A60D4),
-          secondary: Color(0xFF3B2E7E),
-          error: Colors.redAccent,
-        ),
-      ),
-      builder: (context, child) {
-        return Container(
-          color: const Color(0xFF13131A),
-          alignment: Alignment.center,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: ClipRect(child: child),
+    return Consumer<ChatProvider>(
+      builder: (context, chatProvider, child) {
+        return MaterialApp.router(
+          title: 'Vakya Pro',
+          locale: chatProvider.locale,
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('en', 'US'),
+            Locale('hi', 'IN'),
+            Locale('mr', 'IN'),
+            Locale('gu', 'IN'),
+            Locale('ta', 'IN'),
+            Locale('te', 'IN'),
+            Locale('bn', 'IN'),
+            Locale('kn', 'IN'),
+            Locale('ml', 'IN'),
+            Locale('pa', 'IN'),
+          ],
+          theme: ThemeData.dark().copyWith(
+            primaryColor: const Color(0xFF4A60D4),
+            scaffoldBackgroundColor: const Color(0xFF13131A),
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF4A60D4),
+              secondary: Color(0xFF3B2E7E),
+              error: Colors.redAccent,
+            ),
           ),
+          builder: (context, child) {
+            return Container(
+              color: const Color(0xFF13131A),
+              alignment: Alignment.center,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: ClipRect(child: child),
+              ),
+            );
+          },
+          routerConfig: _router,
         );
       },
-      routerConfig: _router,
     );
   }
 }

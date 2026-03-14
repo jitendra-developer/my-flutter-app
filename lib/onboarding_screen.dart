@@ -1,6 +1,10 @@
+import 'settings_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'settings_service.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:myapp/utils/app_localization.dart';
+import 'dart:developer' as developer;
+
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -13,18 +17,50 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
   
-  Map<String, String> settings = {};
+  List<Map<String, String>> onboardingSlides = [];
   bool isLoading = true;
- 
+
   Future<void> loadSettings() async {
-    final service = SettingsService();
+    try {
+      final service = SettingsService();
+      final data = await service.getOnboardingSettings();
 
-    final data = await service.getSettings();
+      // The API returns a Map<String, String> of keys and values.
+      // We need to group them into slides: onboarding_slide1_title, onboarding_slide1_text, etc.
+      final List<Map<String, String>> slides = [];
+      
+      // We'll iterate up to 10 potential slides
+      for (int i = 1; i <= 10; i++) {
+        final prefix = 'onboarding_slide$i';
+        final active = data['${prefix}_active'];
+        
+        // If the slide is explicitly marked as inactive (0), we skip it.
+        // If the key is missing but we have a title/text, we might show it as fallback,
+        // but the doc says 1=active, 0=inactive.
+        if (active == '0') continue;
 
-    setState(() {
-      settings = data;
-      isLoading = false;
-    });
+        final title = data['${prefix}_title'];
+        final text = data['${prefix}_text'];
+        final image = data['${prefix}_image'];
+
+        if (title != null || text != null || image != null) {
+          slides.add({
+            'title': title ?? '',
+            'text': text ?? '',
+            'image': image ?? '',
+            'index': i.toString(),
+          });
+        }
+      }
+
+      setState(() {
+        onboardingSlides = slides;
+        isLoading = false;
+      });
+    } catch (e) {
+      developer.log('Error loading onboarding settings', error: e);
+      setState(() => isLoading = false);
+    }
   }
 
   @override
@@ -40,37 +76,42 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: Center(child: CircularProgressIndicator()),
     );
     }
+    final l10n = AppLocalization('en');
+
+    // Slide count
+    final int slideCount = onboardingSlides.isNotEmpty ? onboardingSlides.length : 3;
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: Stack(
         children: [
-          PageView(
+          PageView.builder(
             controller: _pageController,
+            itemCount: slideCount,
             onPageChanged: (int page) {
               setState(() {
                 _currentPage = page;
               });
             },
-            children: [
-              _buildPage(
-                imagePath: settings["onboarding_slide1_image"],
-                title: settings["onboarding_slide1_title"] ?? "Welcome to Vakya Pro",
-                subtitle: settings["onboarding_slide1_text"] ?? "Generate perfect prompts to maximize the power of any AI tool.",
-                fallbackIcon: Icons.auto_awesome,
-              ),
-              _buildPage(
-                imagePath: settings["onboarding_slide2_image"],
-                title: settings["onboarding_slide2_title"] ?? "For Every AI Platform",
-                subtitle: settings["onboarding_slide2_text"] ?? "Optimized prompts for ChatGPT, Midjourney, Claude, and more.",
-                fallbackIcon: Icons.dashboard_customize,
-              ),
-              _buildPage(
-                imagePath: settings["onboarding_slide3_image"],
-                title: settings["onboarding_slide3_title"] ?? "Easy to Use",
-                subtitle: settings["onboarding_slide3_text"] ?? "Just describe what you need, and let our AI build the prompt for you.",
-                fallbackIcon: Icons.bolt,
-              ),
-            ],
+            itemBuilder: (context, index) {
+              if (onboardingSlides.isNotEmpty) {
+                final slide = onboardingSlides[index];
+                return _buildPage(
+                  imagePath: slide['image'],
+                  title: slide['title']!.isNotEmpty ? slide['title']! : l10n.translate("onboarding_slide${slide['index']}_title"),
+                  subtitle: slide['text']!.isNotEmpty ? slide['text']! : l10n.translate("onboarding_slide${slide['index']}_subtitle"),
+                  fallbackIcon: _getIconForIndex(int.parse(slide['index']!)),
+                );
+              } else {
+                // Fallback to localized slides if no data from API
+                return _buildPage(
+                  imagePath: null,
+                  title: l10n.translate("onboarding_slide${index + 1}_title"),
+                  subtitle: l10n.translate("onboarding_slide${index + 1}_subtitle"),
+                  fallbackIcon: _getIconForIndex(index + 1),
+                );
+              }
+            },
           ),
           Positioned(
             bottom: 20,
@@ -91,7 +132,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   )
                 else
                   const SizedBox(width: 48), // Spacer for balance
-                if (_currentPage < 2)
+                if (_currentPage < slideCount - 1)
                   IconButton(
                     onPressed: () {
                       _pageController.nextPage(
@@ -113,12 +154,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                     ),
-                    child: const Text('Get Started'),
+                    child: Text(l10n.translate('get_started')),
                   ),
               ],
             ),
           ),
-          if (_currentPage < 3)
+          if (_currentPage < slideCount - 1)
             Positioned(
               top: 40,
               right: 20,
@@ -126,15 +167,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 onPressed: () {
                   context.go('/login');
                 },
-                child: const Text(
-                  'Skip',
-                  style: TextStyle(color: Colors.white70),
+                child: Text(
+                  l10n.translate('skip'),
+                  style: const TextStyle(color: Colors.white70),
                 ),
               ),
             ),
         ],
       ),
     );
+  }
+
+  IconData _getIconForIndex(int index) {
+    switch (index) {
+      case 1: return Icons.auto_awesome;
+      case 2: return Icons.dashboard_customize;
+      case 3: return Icons.bolt;
+      default: return Icons.star;
+    }
   }
 
   Widget _buildPage({

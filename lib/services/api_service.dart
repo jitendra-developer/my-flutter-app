@@ -26,8 +26,12 @@ class ApiService {
   // Handle generic API responses
   dynamic _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.body.isEmpty) return null;
-      return json.decode(response.body);
+      if (response.body.isEmpty) return {}; // Return empty map instead of null
+      try {
+        return json.decode(response.body);
+      } catch (e) {
+        return {}; // Fallback for non-json success bodies
+      }
     } else {
       String errorMessage = 'Unexpected error occurred';
       try {
@@ -48,7 +52,8 @@ class ApiService {
 
   // --- 1. Authentication (Public) ---
 
-  Future<void> saveToken(String token) async {
+  Future<void> saveToken(String? token) async {
+    if (token == null || token.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
   }
@@ -77,8 +82,10 @@ class ApiService {
       }),
     );
     final data = _handleResponse(response);
-    if (data['access_token'] != null) await saveToken(data['access_token']);
-    return data;
+    if (data is Map && data['access_token'] != null) {
+      await saveToken(data['access_token'].toString());
+    }
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
@@ -89,8 +96,10 @@ class ApiService {
       body: json.encode({'email': email, 'password': password}),
     );
     final data = _handleResponse(response);
-    await saveToken(data['access_token']);
-    return data;
+    if (data is Map && data['access_token'] != null) {
+      await saveToken(data['access_token'].toString());
+    }
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<Map<String, dynamic>> registerWithEmailOTP(String name, String email, String password) async {
@@ -105,7 +114,8 @@ class ApiService {
         'password_confirmation': password,
       }),
     );
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<Map<String, dynamic>> verifyEmailOTP(String email, String code) async {
@@ -119,8 +129,10 @@ class ApiService {
       }),
     );
     final data = _handleResponse(response);
-    await saveToken(data['access_token']);
-    return data;
+    if (data is Map && data['access_token'] != null) {
+      await saveToken(data['access_token'].toString());
+    }
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
   
   Future<Map<String, dynamic>> resendEmailOTP(String email) async {
@@ -130,7 +142,8 @@ class ApiService {
       headers: await _getHeaders(),
       body: json.encode({'email': email}),
     );
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<Map<String, dynamic>> loginWithGoogle(String idToken) async {
@@ -141,8 +154,10 @@ class ApiService {
       body: json.encode({'token': idToken}),
     );
     final data = _handleResponse(response);
-    await saveToken(data['access_token']);
-    return data;
+    if (data is Map && data['access_token'] != null) {
+      await saveToken(data['access_token'].toString());
+    }
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<void> logout() async {
@@ -161,7 +176,8 @@ class ApiService {
   Future<Map<String, dynamic>> getProfile() async {
     final url = Uri.parse('$baseUrl/auth/me');
     final response = await http.get(url, headers: await _getHeaders(isAuth: true));
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<Map<String, dynamic>> updateProfile(String name, {String? avatar}) async {
@@ -174,7 +190,8 @@ class ApiService {
       headers: await _getHeaders(isAuth: true),
       body: json.encode(body),
     );
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   // --- 4. AI Features (Protected) ---
@@ -190,13 +207,15 @@ class ApiService {
         'question_count': questionCount,
       }),
     );
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<Map<String, dynamic>> getPromptHistory() async {
     final url = Uri.parse('$baseUrl/prompts');
     final response = await http.get(url, headers: await _getHeaders(isAuth: true));
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<Map<String, dynamic>> aiChat(List<Map<String, dynamic>> messages) async {
@@ -206,50 +225,60 @@ class ApiService {
       headers: await _getHeaders(isAuth: true),
       body: json.encode({'messages': messages, 'stream': false}),
     );
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   /// AI Chat with Streaming (SSE)
   Stream<String> aiChatStream(List<Map<String, dynamic>> messages) async* {
     final url = Uri.parse('$baseUrl/ai/chat/stream');
     final client = http.Client();
-    final request = http.Request('POST', url);
-    request.headers.addAll(await _getHeaders(isAuth: true));
-    request.headers['Accept'] = 'text/event-stream';
-    request.headers['Cache-Control'] = 'no-cache';
-    request.body = json.encode({'messages': messages});
+    try {
+      final request = http.Request('POST', url);
+      request.headers.addAll(await _getHeaders(isAuth: true));
+      request.headers['Accept'] = 'text/event-stream';
+      request.headers['Cache-Control'] = 'no-cache';
+      request.body = json.encode({'messages': messages});
 
-    final response = await client.send(request);
+      final response = await client.send(request);
+      developer.log('Stream response status: ${response.statusCode}', name: 'ApiService');
 
-    if (response.statusCode != 200) {
-      final body = await response.stream.bytesToString();
-      client.close();
-      throw Exception('Streaming failed: ${response.statusCode} - $body');
-    }
+      if (response.statusCode != 200) {
+        final body = await response.stream.bytesToString();
+        developer.log('Streaming failed with body: $body', name: 'ApiService');
+        throw Exception('Streaming failed: ${response.statusCode} - $body');
+      }
 
-    // Process SSE stream
-    await for (final line in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
-      if (line.trim().isEmpty) continue;
-      if (line.startsWith('data: ')) {
-        final data = line.substring(6).trim();
-        if (data == '[DONE]') {
-          break;
-        }
-        try {
-          final decoded = json.decode(data);
-          // Look for 'content' or typical OpenAI 'choices' structure
-          final content = decoded['content'] ?? 
-                         (decoded['choices']?[0]?['delta']?['content'] ?? '');
-          if (content.isNotEmpty) {
-            yield content;
+      // Process SSE stream
+      await for (final line in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+        if (line.trim().isEmpty) continue;
+        developer.log('Stream line: $line', name: 'ApiService');
+        if (line.startsWith('data: ') && line.length >= 6) {
+          final data = line.substring(6).trim();
+          if (data == '[DONE]') {
+            developer.log('Stream finished [DONE]', name: 'ApiService');
+            break;
           }
-        } catch (e) {
-          // If it's not JSON, it might be raw text
-          yield data;
+          try {
+            final decoded = json.decode(data);
+            final content = decoded['content'] ?? 
+                           (decoded['choices']?[0]?['delta']?['content'] ?? '');
+            if (content.isNotEmpty) {
+              yield content.toString();
+            }
+          } catch (e) {
+            // If it's not JSON, it might be raw text
+            developer.log('Stream decode error or raw text: $e', name: 'ApiService');
+            yield data;
+          }
         }
       }
+    } catch (e) {
+      developer.log('Stream error: $e', error: e, name: 'ApiService');
+      rethrow;
+    } finally {
+      client.close();
     }
-    client.close();
   }
 
   Future<Map<String, dynamic>> generateImage(String prompt, {String size = '1024x1024'}) async {
@@ -259,7 +288,8 @@ class ApiService {
       headers: await _getHeaders(isAuth: true),
       body: json.encode({'prompt': prompt, 'size': size}),
     );
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   // --- 5. Chat Sessions (Protected) ---
@@ -268,7 +298,8 @@ class ApiService {
     final url = Uri.parse('$baseUrl/chat-sessions');
     final response = await http.get(url, headers: await _getHeaders(isAuth: true));
     final data = _handleResponse(response);
-    return data['data'] ?? data;
+    if (data is Map) return data['data'] ?? [];
+    return data is List ? data : [];
   }
 
   Future<Map<String, dynamic>> createChatSession(String title, List<Map<String, dynamic>> messages) async {
@@ -278,13 +309,15 @@ class ApiService {
       headers: await _getHeaders(isAuth: true),
       body: json.encode({'title': title, 'messages': messages}),
     );
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<Map<String, dynamic>> getChatSession(String sessionId) async {
     final url = Uri.parse('$baseUrl/chat-sessions/$sessionId');
     final response = await http.get(url, headers: await _getHeaders(isAuth: true));
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<Map<String, dynamic>> updateChatSession(String sessionId, String title, List<Map<String, dynamic>> messages) async {
@@ -294,7 +327,8 @@ class ApiService {
       headers: await _getHeaders(isAuth: true),
       body: json.encode({'title': title, 'messages': messages}),
     );
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
   Future<void> deleteChatSession(String sessionId) async {
@@ -309,7 +343,8 @@ class ApiService {
     final url = Uri.parse('$baseUrl/plans');
     final response = await http.get(url, headers: await _getHeaders());
     final data = _handleResponse(response);
-    return data['data'] ?? [];
+    if (data is Map) return data['data'] ?? [];
+    return data is List ? data : [];
   }
 
   /// Fetch multiple app settings (e.g., prefix='onboarding_')
@@ -326,7 +361,7 @@ class ApiService {
     try {
       final response = await http.get(uri, headers: await _getHeaders());
       final data = _handleResponse(response);
-      final List<dynamic> items = data['data'] ?? [];
+      final List<dynamic> items = data is Map ? (data['data'] ?? []) : [];
       
       final Map<String, String> settings = {};
       for (var item in items) {
@@ -351,7 +386,8 @@ class ApiService {
       final url = Uri.parse('$baseUrl/app-settings/$key');
       final response = await http.get(url, headers: await _getHeaders());
       final data = _handleResponse(response);
-      return data['data']?['setting_value']?.toString();
+      if (data is Map) return data['data']?['setting_value']?.toString();
+      return null;
     } catch (e) {
       developer.log('Failed to fetch single app setting: $key', error: e);
       return null;

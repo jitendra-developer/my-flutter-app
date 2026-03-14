@@ -7,6 +7,7 @@ import 'package:myapp/utils.dart';
 import 'package:myapp/services/api_service.dart';
 import 'package:myapp/chat_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:myapp/utils/app_localization.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -67,6 +68,9 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final chatProvider = Provider.of<ChatProvider>(context);
+    final l10n = chatProvider.l10n;
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: SafeArea(
@@ -82,7 +86,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   Image.asset('assets/images/logo.png', height: 80),
                   const SizedBox(height: 20),
                   Text(
-                    'Create an Account',
+                    l10n.translate('create_account'),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 28,
@@ -92,7 +96,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Start your journey with us',
+                    l10n.translate('sign_up_to_start'),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
@@ -103,7 +107,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   _buildTextField(
                     controller: _fullNameController,
                     icon: Icons.person_outline,
-                    hint: 'Full Name',
+                    hint: l10n.translate('profile'), // Assuming full name is profile related or use a new key
                     validator: (value) => value == null || value.isEmpty
                         ? 'Please enter your full name'
                         : null,
@@ -112,7 +116,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   _buildTextField(
                     controller: _emailController,
                     icon: Icons.email_outlined,
-                    hint: 'Enter Your Email',
+                    hint: l10n.translate('enter_email'),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter an email';
@@ -127,7 +131,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   _buildTextField(
                     controller: _passwordController,
                     icon: Icons.lock_outline,
-                    hint: 'Password',
+                    hint: l10n.translate('password'),
                     isPassword: true,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -143,7 +147,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   _buildTextField(
                     controller: _confirmPasswordController,
                     icon: Icons.lock_outline,
-                    hint: 'Confirm Password',
+                    hint: l10n.translate('password'), // Or add 'Confirm Password' key
                     isPassword: true,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -158,15 +162,15 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 30),
                   _isLoading
                       ? const Center(child: CircularProgressIndicator())
-                      : _buildMainButton('Register', _register),
+                      : _buildMainButton(l10n.translate('register'), _register),
                   const SizedBox(height: 20),
-                  _buildSocialSection(),
+                  _buildSocialSection(l10n),
                   const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Already have an account? ',
+                        '${l10n.translate('already_have_account')} ',
                         style: GoogleFonts.plusJakartaSans(
                           color: Colors.white54,
                         ),
@@ -175,7 +179,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         onTap: () =>
                             context.go('/email-login'), // CORRECTED NAVIGATION
                         child: Text(
-                          'Sign in',
+                          l10n.translate('login'),
                           style: GoogleFonts.plusJakartaSans(
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -246,12 +250,13 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildSocialSection() {
+  // Update helper method signature
+  Widget _buildSocialSection(AppLocalization l10n) {
     return Column(
       children: [
         Center(
           child: Text(
-            'Or sign up with',
+            l10n.translate('or_continue_with'),
             style: GoogleFonts.plusJakartaSans(
               color: Colors.white38,
               fontSize: 14,

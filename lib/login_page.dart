@@ -191,9 +191,10 @@ class _AuthHubPageState extends State<AuthHubPage> {
             );
           }
         } catch (e) {
+          developer.log('$type Sign-In error detail: $e', error: e);
           showFeedback(
             context,
-            '$type Sign-In failed. Please try again.',
+            e.toString().replaceAll('Exception: ', ''),
             isError: true,
           );
         }

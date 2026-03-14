@@ -14,13 +14,17 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-import 'package:myapp/services/api_service.dart'; // Added import
+import 'package:myapp/services/api_service.dart';
 import 'chat_provider.dart';
 import 'history_page.dart';
 import 'screens/pre_prompts_page.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-class ChatPage extends StatefulWidget { // Changed to StatefulWidget
+
+class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
 
   @override
@@ -29,7 +33,7 @@ class ChatPage extends StatefulWidget { // Changed to StatefulWidget
 
 class _ChatPageState extends State<ChatPage> {
   final ApiService _apiService = ApiService();
-  String _userName = 'User Name'; // State variable for user name
+  String _userName = 'User Name';
 
   @override
   void initState() {
@@ -41,23 +45,21 @@ class _ChatPageState extends State<ChatPage> {
     try {
       if (await _apiService.hasToken()) {
         final profile = await _apiService.getProfile();
-        if (mounted) {
+        if (mounted && profile.containsKey('name')) {
+          final String name = profile['name']?.toString() ?? 'User';
           setState(() {
-            _userName = profile['name']?.split(' ').first ?? 'User';
+            _userName = name.trim().split(' ').first;
+            if (_userName.isEmpty) _userName = 'User';
           });
         }
       }
     } catch (e) {
-      // Ignore or log error
       debugPrint('Error loading user profile: $e');
     }
   }
 
   Widget _buildDrawer(BuildContext context) {
     final chatProvider = Provider.of<ChatProvider>(context);
-    // final user = Supabase.instance.client.auth.currentUser; // Removed
-    // final userName = user?.userMetadata?['full_name'] ?? 'User Name'; // Removed
-
     final recentChats = chatProvider.chatHistory.take(2).toList();
     
     return Drawer(
@@ -121,10 +123,8 @@ class _ChatPageState extends State<ChatPage> {
             const Divider(color: Colors.white24),
             ListTile(
               leading: const Icon(Icons.account_circle, color: Colors.white),
-              title: Text(_userName, style: const TextStyle(color: Colors.white, fontSize: 16)), // Used _userName from state
-              onTap: () {
-                // Future profile customization will be here
-              },
+              title: Text(_userName, style: const TextStyle(color: Colors.white, fontSize: 16)),
+              onTap: () {},
             ),
             ListTile(
               leading: const Icon(Icons.settings, color: Colors.white),
@@ -156,19 +156,16 @@ class _ChatPageState extends State<ChatPage> {
                         ),
                         TextButton(
                           onPressed: () async {
-                            Navigator.of(context).pop(); // Close dialog
-                            
-                            // Important: Clear local session state first
-                            Provider.of<ChatProvider>(context, listen: false).clearOnLogout();
-                            
-                            // Then notify backend and redirect to main auth hub
-                            try {
-                              await _apiService.logout();
-                            } finally {
-                              if (context.mounted) {
-                                context.go('/login');
-                              }
+                            Navigator.of(context).pop();
+                            final cp = Provider.of<ChatProvider>(context, listen: false);
+                            // Remove token immediately so cold restart shows welcome screen
+                            await _apiService.removeToken();
+                            cp.clearOnLogout();
+                            if (context.mounted) {
+                              context.go('/login');
                             }
+                            // Fire-and-forget the server-side logout
+                            _apiService.logout().catchError((_) {});
                           },
                           child: Text(l10n.translate('yes'), style: const TextStyle(color: Colors.redAccent)),
                         ),
@@ -259,29 +256,27 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Provider.of<ChatProvider>(context).l10n;
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Logo/Icon
           Center(
             child: Container(
               width: 100, height: 100,
               decoration: BoxDecoration(
-                // A subtle gradient background for the icon area to simulate the glowing 3D asset
                 gradient: RadialGradient(
                   colors: [Colors.deepPurple.withOpacity(0.4), Colors.transparent],
                   radius: 0.8,
                 ),
               ),
-              child: const Icon(Icons.bolt, size: 80, color: Colors.amber), 
+              child: const Icon(Icons.bolt, size: 80, color: Colors.amber),
             ),
           ),
           const SizedBox(height: 24),
-          // Heading
           Text(
-            'Generate Better AI Prompts',
+            l10n.translate('generate_better_prompts'),
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 26,
@@ -290,9 +285,8 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
             ),
           ),
           const SizedBox(height: 12),
-          // Subheading
           Text(
-            'Describe what you want and get optimized\nprompts for any AI tool.',
+            l10n.translate('describe_prompts_subtitle'),
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 16,
@@ -301,7 +295,6 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
             ),
           ),
           const SizedBox(height: 32),
-          // Input field
           Container(
             decoration: BoxDecoration(
               color: const Color(0xFF1C1C24),
@@ -311,18 +304,17 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
             child: TextField(
               controller: _promptController,
               style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                hintText: 'Describe the prompt you want to create...',
-                hintStyle: TextStyle(color: Color(0xFF8F8F99)),
-                prefixIcon: Icon(Icons.search, color: Color(0xFF8F8F99)),
+              decoration: InputDecoration(
+                hintText: l10n.translate('describe_placeholder'),
+                hintStyle: const TextStyle(color: Color(0xFF8F8F99)),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF8F8F99)),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               ),
               onSubmitted: (text) => _sendPrompt(context, text),
             ),
           ),
           const SizedBox(height: 16),
-          // Generate button
           GestureDetector(
             onTap: () => _sendPrompt(context, _promptController.text),
             child: Container(
@@ -336,7 +328,7 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
               ),
               child: Center(
                 child: Text(
-                  'Generate Prompt',
+                  l10n.translate('generate_prompt'),
                   style: GoogleFonts.plusJakartaSans(
                     color: Colors.white,
                     fontSize: 16,
@@ -347,9 +339,8 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
             ),
           ),
           const SizedBox(height: 32),
-          // Prompt Types Title
           Text(
-            'Prompt Types',
+            l10n.translate('prompt_types'),
             style: GoogleFonts.plusJakartaSans(
               color: const Color(0xFF8F8F99),
               fontSize: 16,
@@ -357,13 +348,11 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
             ),
           ),
           const SizedBox(height: 16),
-          // Grid - Responsive based on screen width
           LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth;
               final crossAxisCount = width > 600 ? 4 : 2;
               final aspectRatio = width > 600 ? 4.0 : 3.0;
-              
               return GridView.count(
                 crossAxisCount: crossAxisCount,
                 shrinkWrap: true,
@@ -374,15 +363,15 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
                 children: [
                   _buildTypeCard(Icons.image, 'Image AI', Colors.blueAccent),
                   _buildTypeCard(Icons.chat, 'ChatGPT', Colors.tealAccent),
-                  _buildTypeCard(Icons.campaign, 'Marketing', Colors.purpleAccent),
-                  _buildTypeCard(Icons.code, 'Coding', Colors.lightBlueAccent),
+                  _buildTypeCard(Icons.campaign, l10n.translate('marketing'), Colors.purpleAccent),
+                  _buildTypeCard(Icons.code, l10n.translate('coding'), Colors.lightBlueAccent),
                 ],
               );
             },
           ),
           const SizedBox(height: 32),
           Text(
-            'Try prompts',
+            l10n.translate('try_prompts'),
             style: GoogleFonts.plusJakartaSans(
               color: const Color(0xFF8F8F99),
               fontSize: 16,
@@ -390,10 +379,10 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildTryPrompt(context, 'Create a prompt for writing viral tweets'),
-          _buildTryPrompt(context, 'Generate Midjourney image prompt'),
-          _buildTryPrompt(context, 'Create a marketing prompt for product launch'),
-          _buildTryPrompt(context, 'Generate AI prompt for a blog outline'),
+          _buildTryPrompt(context, l10n.translate('try_prompt_1')),
+          _buildTryPrompt(context, l10n.translate('try_prompt_2')),
+          _buildTryPrompt(context, l10n.translate('try_prompt_3')),
+          _buildTryPrompt(context, l10n.translate('try_prompt_4')),
         ],
       ),
     );
@@ -472,16 +461,14 @@ class MessageBubble extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
+        final l10n = Provider.of<ChatProvider>(context, listen: false).l10n;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
                 leading: const Icon(Icons.edit, color: Colors.white),
-                title: const Text(
-                  'Edit',
-                  style: TextStyle(color: Colors.white),
-                ),
+                title: Text(l10n.translate('edit'), style: const TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
                   Provider.of<ChatProvider>(context, listen: false).editMessage(
@@ -494,16 +481,10 @@ class MessageBubble extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.restore, color: Colors.white),
-                title: const Text(
-                  'Roll Back',
-                  style: TextStyle(color: Colors.white),
-                ),
+                title: Text(l10n.translate('roll_back'), style: const TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
-                  Provider.of<ChatProvider>(
-                    context,
-                    listen: false,
-                  ).rollbackMessage(message);
+                  Provider.of<ChatProvider>(context, listen: false).rollbackMessage(message);
                 },
               ),
             ],
@@ -525,7 +506,6 @@ class MessageBubble extends StatelessWidget {
           Flexible(
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                // Max width 75% on phones, capped at 600px on large tablets
                 maxWidth: MediaQuery.of(context).size.width > 800 
                     ? 600 
                     : MediaQuery.of(context).size.width * 0.75,
@@ -641,8 +621,8 @@ class MessageBubble extends StatelessWidget {
                                 ClipboardData(text: message.text),
                               );
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Copied to clipboard'),
+                                SnackBar(
+                                  content: Text(Provider.of<ChatProvider>(context, listen: false).l10n.translate('copied_to_clipboard')),
                                 ),
                               );
                             },
@@ -727,14 +707,18 @@ class _ChatInputFieldState extends State<ChatInputField> {
   }
 
   void _initSpeech() async {
-    await _speechToText.initialize(
-      onStatus: (status) {
-        if (status == 'done' || status == 'notListening') {
-          _onSpeechEnd();
-        }
-      },
-      onError: (errorNotification) => print('error: $errorNotification'),
-    );
+    try {
+      await _speechToText.initialize(
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            _onSpeechEnd();
+          }
+        },
+        onError: (errorNotification) => debugPrint('STT error: $errorNotification'),
+      );
+    } catch (e) {
+      debugPrint('STT init failed: $e');
+    }
   }
 
   void _onSpeechEnd() {
@@ -774,7 +758,64 @@ class _ChatInputFieldState extends State<ChatInputField> {
     if (_isListening) return;
 
     var status = await Permission.microphone.status;
+
+    if (status.isPermanentlyDenied) {
+      // User permanently denied — direct them to system settings
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Microphone Permission Needed'),
+            content: const Text(
+              'Voice mode needs microphone access, which was permanently denied. '
+              'Please enable it in your device Settings > App Permissions.',
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              TextButton(onPressed: () async {
+                Navigator.pop(context);
+                await openAppSettings();
+              }, child: const Text('Open Settings')),
+            ],
+          ),
+        );
+      }
+      chatProvider.setContinuousVoiceMode(false);
+      return;
+    }
+
     if (!status.isGranted) {
+      // Show rationale before requesting (required for Play Store compliance)
+      bool proceed = true;
+      if (status.isDenied && mounted) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Microphone Access'),
+            content: const Text(
+              'Vakya Pro needs microphone access only while you are using Voice Mode '
+              'to convert your speech to text. The microphone is never used in the background.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  proceed = false;
+                  Navigator.pop(context);
+                },
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+        );
+      }
+      if (!proceed) {
+        chatProvider.setContinuousVoiceMode(false);
+        return;
+      }
       status = await Permission.microphone.request();
     }
 
@@ -822,10 +863,8 @@ class _ChatInputFieldState extends State<ChatInputField> {
         children: [
           if (chatProvider.isResponding)
             ElevatedButton(
-              onPressed: () {
-                chatProvider.stopResponding();
-              },
-              child: const Text('Stop Responding'),
+              onPressed: () => chatProvider.stopResponding(),
+              child: Text(chatProvider.l10n.translate('stop_responding')),
             ),
           if (_selectedImagePath != null)
             Stack(
@@ -903,7 +942,6 @@ class _ChatInputFieldState extends State<ChatInputField> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Media & Document attachment buttons
               Container(
                 margin: const EdgeInsets.only(right: 6, bottom: 4),
                 decoration: BoxDecoration(
@@ -920,6 +958,10 @@ class _ChatInputFieldState extends State<ChatInputField> {
                       tooltip: 'Attach Image',
                       onPressed: () async {
                         var status = await Permission.photos.status;
+                        if (status.isPermanentlyDenied) {
+                           openAppSettings();
+                           return;
+                        }
                         if (!status.isGranted) {
                           await Permission.photos.request();
                         }
@@ -959,7 +1001,6 @@ class _ChatInputFieldState extends State<ChatInputField> {
                   ],
                 ),
               ),
-              // Expanding Text Input
               Expanded(
                 child: TextField(
                   controller: _controller,
@@ -979,12 +1020,11 @@ class _ChatInputFieldState extends State<ChatInputField> {
                       }
                     } else if (_isListening) {
                       _speechToText.stop();
-                      _lastWords = ''; // discard spoken words
+                      _lastWords = '';
                       setState(() {
                         _isListening = false;
                       });
                     } else {
-                      // Rebuild so mic ↔ send icon updates on every keystroke
                       setState(() {});
                     }
                   },
@@ -1003,8 +1043,6 @@ class _ChatInputFieldState extends State<ChatInputField> {
                 ),
               ),
               const SizedBox(width: 6),
-              
-              // Voice / Send buttons
               Container(
                 margin: const EdgeInsets.only(bottom: 4),
                 decoration: const BoxDecoration(
@@ -1032,11 +1070,9 @@ class _ChatInputFieldState extends State<ChatInputField> {
                           : const Icon(Icons.arrow_upward_rounded, color: Colors.white),
                       onPressed: () {
                         if (_controller.text.trim().isEmpty && _selectedImagePath == null && _selectedDocumentPath == null) {
-                           // Voice mode
                            chatProvider.setContinuousVoiceMode(true);
                            startListening();
                         } else {
-                          // Send Message
                           final text = _controller.text.trim();
                           chatProvider.sendMessage(
                             text,
@@ -1064,21 +1100,28 @@ class _ChatInputFieldState extends State<ChatInputField> {
 
   @override
   void dispose() {
+    // Always stop microphone when leaving the chat page
+    if (_isListening) {
+      _speechToText.stop();
+      _isListening = false;
+    }
     _controller.dispose();
+    // Turn off continuous voice mode in provider so it doesn't restart elsewhere
+    try {
+      final cp = Provider.of<ChatProvider>(context, listen: false);
+      if (cp.isContinuousVoiceMode) {
+        cp.setContinuousVoiceMode(false);
+      }
+    } catch (_) {}
     super.dispose();
   }
 }
 
-/// Custom markdown builder that wraps every fenced code block
-/// with a dark container and a one-tap Copy button.
 class _CopyableCodeBlockBuilder extends MarkdownElementBuilder {
   @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    // 'pre' element wraps the inner 'code' element
     final rawText = element.textContent;
-    // Strip leading/trailing whitespace that the markdown parser adds
     final codeText = rawText.trimRight();
-
     return _CopyableCodeBlock(codeText: codeText);
   }
 }
@@ -1114,7 +1157,6 @@ class _CopyableCodeBlockState extends State<_CopyableCodeBlock> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header bar with copy button
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: const BoxDecoration(
@@ -1158,7 +1200,6 @@ class _CopyableCodeBlockState extends State<_CopyableCodeBlock> {
               ],
             ),
           ),
-          // Code content
           Padding(
             padding: const EdgeInsets.all(14),
             child: SelectableText(

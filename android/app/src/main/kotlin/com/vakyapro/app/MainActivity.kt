@@ -1,4 +1,4 @@
-package com.example.myapp
+package com.vakyapro.app
 
 import android.content.Intent
 import android.os.Bundle
@@ -8,7 +8,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var deepLinkURL: String? = null
-    private val CHANNEL = "com.example.myapp/deeplink"
+    private val CHANNEL = "com.vakyapro.app/deeplink"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

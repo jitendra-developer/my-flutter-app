@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:myapp/services/api_service.dart';
 
 class GoogleESign {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    // Optional: add scopes here if needed later (e.g., 'email', 'profile')
+    serverClientId: dotenv.env['GOOGLE_WEB_CLIENT_ID'],
   );
 
   GoogleESign();
@@ -13,6 +13,9 @@ class GoogleESign {
   Future<void> signInWithGoogle() async {
     developer.log('Starting Google Sign-In flow');
     try {
+      // Clear any cached Google session to ensure a fresh sign-in every time
+      await _googleSignIn.signOut();
+
       // 1. Trigger the Google Authentication flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       

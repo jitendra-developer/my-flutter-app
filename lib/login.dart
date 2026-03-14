@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:myapp/utils.dart'; // Import the utils file
+import 'package:myapp/utils.dart';
 import 'dart:developer' as developer;
 import 'package:myapp/google_esign.dart';
 import 'package:myapp/services/api_service.dart';
 import 'package:myapp/chat_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:myapp/utils/app_localization.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -43,6 +44,7 @@ class _LoginPageState extends State<LoginPage> {
       );
       developer.log('Login successful');
       if (mounted) {
+        Provider.of<ChatProvider>(context, listen: false).initializeAfterAuth();
         context.go('/chat');
       }
     } catch (e) {
@@ -65,6 +67,9 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final chatProvider = Provider.of<ChatProvider>(context);
+    final l10n = chatProvider.l10n;
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
@@ -86,7 +91,7 @@ class _LoginPageState extends State<LoginPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Welcome Back!',
+                    l10n.translate('welcome_back'),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 28,
@@ -96,7 +101,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Sign in to continue',
+                    l10n.translate('sign_in_continue'),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
@@ -107,7 +112,7 @@ class _LoginPageState extends State<LoginPage> {
                   _buildTextField(
                     controller: _emailController,
                     icon: Icons.email_outlined,
-                    hint: 'Enter Your Email',
+                    hint: l10n.translate('enter_email'),
                     validator: (value) {
                       if (value == null || value.isEmpty)
                         return 'Please enter an email';
@@ -121,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
                   _buildTextField(
                     controller: _passwordController,
                     icon: Icons.lock_outline,
-                    hint: 'Password',
+                    hint: l10n.translate('password'),
                     isPassword: true,
                     validator: (value) {
                       if (value == null || value.isEmpty)
@@ -132,17 +137,78 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 30),
                   _isLoading
                       ? const Center(child: CircularProgressIndicator())
-                      : _buildMainButton('Login', _login),
+                      : _buildMainButton(l10n.translate('login'), _login),
                   const SizedBox(height: 20),
-                  _buildSignUpInstead(),
+                  _buildSignUpInstead(l10n),
                   const SizedBox(height: 40),
-                  _buildSocialSection(),
+                  _buildSocialSection(l10n),
                 ],
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // ... (keeping other helper methods mostly same but updating where needed)
+  // I need to update _buildSignUpInstead and _buildSocialSection signature to accept l10n
+
+  Widget _buildSignUpInstead(AppLocalization l10n) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          "${l10n.translate('dont_have_account')} ",
+          style: GoogleFonts.plusJakartaSans(color: Colors.white54),
+        ),
+        GestureDetector(
+          onTap: () => context.go('/register'),
+          child: Text(
+            l10n.translate('sign_up'),
+            style: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSocialSection(AppLocalization l10n) {
+    return Column(
+      children: [
+        Center(
+          child: Text(
+            l10n.translate('or_continue_with'),
+            style: GoogleFonts.plusJakartaSans(
+              color: Colors.white38,
+              fontSize: 14,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSocialButton(
+                type: 'google',
+                imagePath: 'assets/images/google_logo.png',
+                bgColor: const Color(0xFF3D2022),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildSocialButton(
+                type: 'facebook',
+                imagePath: 'assets/images/facebook_logo.png',
+                bgColor: const Color(0xFF222E3E),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -199,64 +265,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildSignUpInstead() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "Don't have an account? ",
-          style: GoogleFonts.plusJakartaSans(color: Colors.white54),
-        ),
-        GestureDetector(
-          onTap: () => context.go('/register'),
-          child: Text(
-            'Sign up',
-            style: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSocialSection() {
-    return Column(
-      children: [
-        Center(
-          child: Text(
-            'Or continue with',
-            style: GoogleFonts.plusJakartaSans(
-              color: Colors.white38,
-              fontSize: 14,
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSocialButton(
-                type: 'google',
-                imagePath: 'assets/images/google_logo.png',
-                bgColor: const Color(0xFF3D2022),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildSocialButton(
-                type: 'facebook',
-                imagePath: 'assets/images/facebook_logo.png',
-                bgColor: const Color(0xFF222E3E),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   Widget _buildSocialButton({
     required String type,
     required String imagePath,
@@ -290,7 +298,7 @@ class _LoginPageState extends State<LoginPage> {
           developer.log('$type Sign-In failed: $e', error: e);
           showFeedback(
             context,
-            '$type Sign-In failed. Please try again.',
+            e.toString().replaceAll('Exception: ', ''),
             isError: true,
           );
         }

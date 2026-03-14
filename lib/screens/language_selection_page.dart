@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../chat_provider.dart';
@@ -31,7 +32,7 @@ class LanguageSelectionPage extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
         ),
         title: Text(
           chatProvider.l10n.translate('language'),
@@ -48,7 +49,7 @@ class LanguageSelectionPage extends StatelessWidget {
         separatorBuilder: (context, index) => const Divider(color: Colors.white10),
         itemBuilder: (context, index) {
           final lang = _languages[index];
-          final isSelected = lang['name'] == currentLanguage;
+          final isSelected = lang['code'] == chatProvider.appLanguage;
 
           return ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -68,15 +69,14 @@ class LanguageSelectionPage extends StatelessWidget {
                 ? const Icon(Icons.check_circle, color: Color(0xFF4A60D4))
                 : null,
             onTap: () {
-              chatProvider.setAppLanguage(lang['name']!);
-              Navigator.pop(context);
+              chatProvider.setAppLanguage(lang['code']!);
+              context.pop();
               
               String feedback = 'Language set to ${lang['name']}';
-              switch (lang['name']) {
-                case 'Hindi': feedback = 'भाषा ${lang['name']} पर सेट की गई'; break;
-                case 'Marathi': feedback = 'भाषा ${lang['name']} वर सेट केली'; break;
-                case 'Gujarati': feedback = 'ભાષા ${lang['name']} પર સેટ છે'; break;
-                // Add more if needed or just use English as fallback
+              switch (lang['code']) {
+                case 'hi': feedback = 'भाषा ${lang['name']} पर सेट की गई'; break;
+                case 'mr': feedback = 'भाषा ${lang['name']} वर सेट केली'; break;
+                case 'gu': feedback = 'ભાષા ${lang['name']} પર સેટ છે'; break;
               }
 
               ScaffoldMessenger.of(context).showSnackBar(

@@ -32,11 +32,25 @@ class ChatProvider with ChangeNotifier {
   List<ChatSession> _chatHistory = [];
   // Tracks the LOCAL uuid of the current session (used for in-memory lookup)
   String? _currentSessionLocalId;
+  bool _isAuthenticated;
 
-  String _appLanguage = 'English';
+  bool get isAuthenticated => _isAuthenticated;
+
+  String _appLanguage = 'en';
   String get appLanguage => _appLanguage;
   
   AppLocalization get l10n => AppLocalization(_appLanguage);
+
+  Locale get locale => Locale(_appLanguage);
+
+  String get _appLanguageName {
+    const names = {
+      'en': 'English', 'hi': 'Hindi', 'mr': 'Marathi',
+      'gu': 'Gujarati', 'ta': 'Tamil', 'te': 'Telugu',
+      'bn': 'Bengali', 'kn': 'Kannada', 'ml': 'Malayalam', 'pa': 'Punjabi',
+    };
+    return names[_appLanguage] ?? 'English';
+  }
 
   List<ChatSession> get chatHistory => _chatHistory;
 
@@ -56,27 +70,33 @@ class ChatProvider with ChangeNotifier {
   // Keep for compatibility but redirect to global
   void setChatLanguage(String language) => setAppLanguage(language);
 
-  ChatProvider() {
+  ChatProvider({bool initialAuthenticated = false})
+      : _isAuthenticated = initialAuthenticated {
     _initTts();
     _loadLanguage();
-    _loadChats(); // Load natively if token exists
+    if (initialAuthenticated) _loadChats();
   }
 
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    _appLanguage = prefs.getString('app_language') ?? 'English';
+    _appLanguage = prefs.getString('app_language') ?? 'en';
+    final token = prefs.getString('auth_token');
+    _isAuthenticated = token != null && token.isNotEmpty;
     await _updateTtsLanguage();
     notifyListeners();
   }
 
   void initializeAfterAuth() {
+    _isAuthenticated = true;
     _loadChats();
+    notifyListeners();
   }
 
   void clearOnLogout() {
     _chatHistory.clear();
     _messages.clear();
     _currentSessionLocalId = null;
+    _isAuthenticated = false;
     notifyListeners();
   }
 
@@ -137,6 +157,11 @@ class ChatProvider with ChangeNotifier {
 
   void createNewChat() {
     if (_isResponding) stopResponding();
+    // Stop voice mode when starting a new chat — mic should not carry over
+    if (_isContinuousVoiceMode) {
+      _isContinuousVoiceMode = false;
+      ChatInputField.globalKey.currentState?.stopListening();
+    }
 
     _chatHistory.removeWhere((s) => s.messages.length < 2 && s.localId != _currentSessionLocalId);
     if (_currentSessionLocalId != null && _messages.length < 2) {
@@ -227,15 +252,15 @@ class ChatProvider with ChangeNotifier {
   Future<void> _updateTtsLanguage() async {
     String locale = 'en-US';
     switch (_appLanguage) {
-      case 'Hindi': locale = 'hi-IN'; break;
-      case 'Marathi': locale = 'mr-IN'; break;
-      case 'Gujarati': locale = 'gu-IN'; break;
-      case 'Tamil': locale = 'ta-IN'; break;
-      case 'Telugu': locale = 'te-IN'; break;
-      case 'Bengali': locale = 'bn-IN'; break;
-      case 'Kannada': locale = 'kn-IN'; break;
-      case 'Malayalam': locale = 'ml-IN'; break;
-      case 'Punjabi': locale = 'pa-IN'; break;
+      case 'hi': locale = 'hi-IN'; break;
+      case 'mr': locale = 'mr-IN'; break;
+      case 'gu': locale = 'gu-IN'; break;
+      case 'ta': locale = 'ta-IN'; break;
+      case 'te': locale = 'te-IN'; break;
+      case 'bn': locale = 'bn-IN'; break;
+      case 'kn': locale = 'kn-IN'; break;
+      case 'ml': locale = 'ml-IN'; break;
+      case 'pa': locale = 'pa-IN'; break;
     }
     await _flutterTts.setLanguage(locale);
   }
@@ -307,9 +332,9 @@ class ChatProvider with ChangeNotifier {
       - If a user asks you to generate an image, you must reply EXACTLY with: "sorry, i cant generate images. Use only for prompt generation."
 
       IMPORTANT LANGUAGE RULE:
-      - ALWAYS respond consistently and fluently in $_appLanguage, regardless of the language the user types in.
-      - If the user types in Hindi, you still reply in $_appLanguage. 
-      - If the user types in a mix of English and another language, you still reply ONLY in $_appLanguage.
+      - ALWAYS respond consistently and fluently in $_appLanguageName, regardless of the language the user types in.
+      - If the user types in Hindi, you still reply in $_appLanguageName.
+      - If the user types in a mix of English and another language, you still reply ONLY in $_appLanguageName.
       - This applies to both the final prompt and your conversational guidance.
 
       Conversation style:
@@ -434,12 +459,15 @@ class ChatProvider with ChangeNotifier {
 
     startResponding();
 
+    developer.log('Sending message: $finalPromptText', name: 'ChatProvider');
+
     // Show a temporary loading indicator for processing intent or generation
     final aiMessageIndex = _messages.length;
     _messages.add(Message(text: '...', isUser: false));
     notifyListeners();
 
     bool isImageRequest = await _isImageGenerationIntent(text, imagePath);
+    developer.log('Is image request: $isImageRequest', name: 'ChatProvider');
 
     try {
       if (isImageRequest) {
@@ -466,32 +494,41 @@ class ChatProvider with ChangeNotifier {
         }
 
       } else {
-        // AI Chat with Streaming
+        // AI Chat
         final history = _buildMessageHistory(forVoice: isVoiceInput);
-        final stream = _apiService.aiChatStream(history);
-        
         String accumulatedText = '';
-        bool isFirstChunk = true;
 
-        await for (final chunk in stream) {
-          if (isFirstChunk) {
-            // Clear the "..." processing indicator
-            _messages[aiMessageIndex] = Message(text: '', isUser: false);
-            isFirstChunk = false;
+        try {
+          // Try streaming first
+          final stream = _apiService.aiChatStream(history);
+          bool isFirstChunk = true;
+
+          await for (final chunk in stream.timeout(const Duration(seconds: 60))) {
+            if (isFirstChunk) {
+              _messages[aiMessageIndex] = Message(text: '', isUser: false);
+              isFirstChunk = false;
+            }
+            accumulatedText += chunk;
+            _messages[aiMessageIndex] = Message(text: accumulatedText, isUser: false);
+            notifyListeners();
           }
-          
-          accumulatedText += chunk;
+
+          // If stream completed but sent no content, treat as failure
+          if (isFirstChunk) throw Exception('Empty stream response');
+
+        } catch (streamError) {
+          developer.log('Stream failed, falling back to non-streaming: $streamError', name: 'ChatProvider');
+          // Fallback to regular non-streaming endpoint
+          _messages[aiMessageIndex] = Message(text: '', isUser: false);
+          notifyListeners();
+
+          final response = await _apiService.aiChat(history);
+          accumulatedText = response['content']?.toString() ?? '';
           _messages[aiMessageIndex] = Message(
-            text: accumulatedText,
+            text: accumulatedText.isNotEmpty ? accumulatedText : 'No response received.',
             isUser: false,
           );
           notifyListeners();
-
-          if (isVoiceInput) {
-            // For voice, we typically want to speak in sentences.
-            // Simplified here: we'll just handle the final text for speak 
-            // after the stream finishes, or we could split by punctuation here.
-          }
         }
 
         if (isVoiceInput && accumulatedText.isNotEmpty) {

@@ -176,19 +176,77 @@ NEW FEATURES & IMPROVEMENTS:
   - Google Sign-In Audit: Completed a comprehensive audit and verification of the Google OAuth integration flow for security and UX.
 
 --------------------------------------------------------------------------------
+[BUILD 2.4.0] — Full App Translation, Voice Mode Privacy & Google Sign-In Fix
+Date: 2026-03-14
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Full app UI translation for all 10 languages (English, Hindi, Marathi, Gujarati, Tamil,
+    Telugu, Bengali, Kannada, Malayalam, Punjabi) — every screen, button, and string
+    now switches when the user changes language in Settings.
+  - Welcome screen, Onboarding screen, and Auth Hub page are intentionally locked to
+    English always (pre-auth screens should not depend on user language setting).
+  - AI response language enforced using full language name in system prompt
+    (e.g. "Hindi" instead of "hi") for more reliable multilingual AI behaviour.
+
+IMPROVEMENTS:
+  - Voice Mode auto-stops when user navigates away from the Chat page (settings,
+    history, logout, etc.) — microphone is always released on navigation.
+  - Voice Mode auto-stops when user starts a New Chat — mic does not carry over
+    between conversations.
+  - Microphone permission flow updated to meet production/Play Store standards:
+      * Shows a clear rationale dialog explaining mic usage before the system
+        permission prompt appears (required by Google Play policy).
+      * Permanently denied state now directs user to system App Settings with
+        a descriptive message instead of silently failing.
+  - AI streaming response now has a 60-second timeout — if the streaming endpoint
+    hangs, the app automatically falls back to the non-streaming /ai/chat endpoint
+    so the user always gets a response instead of an infinite thinking animation.
+  - App package name updated from placeholder `com.example.myapp` to the correct
+    production ID `com.vakyapro.app` across all Android config files.
+
+BUG FIXES:
+  - Fixed infinite "Thinking..." animation caused by streaming endpoint hanging
+    indefinitely with no timeout or fallback.
+  - Fixed Google Sign-In failing with DEVELOPER_ERROR — root cause was package name
+    mismatch between the app (`com.example.myapp`) and the registered OAuth client
+    (`com.vakyapro.app`). Fixed by updating applicationId, namespace, AndroidManifest,
+    and MainActivity to use `com.vakyapro.app`.
+  - Removed incorrect Desktop-type OAuth credentials file that was mistakenly placed
+    as google-services.json. Google Sign-In on Android does not require Firebase or
+    google-services.json when serverClientId is set directly in code.
+  - Fixed missing translation keys (`coding`, `marketing`) in Telugu, Bengali, Kannada,
+    Malayalam, and Punjabi language maps causing UI fallback to English for those strings.
+
+--------------------------------------------------------------------------------
+[BUILD 2.4.1] — Google Sign-In Fixes
+Date: 2026-03-14
+--------------------------------------------------------------------------------
+BUG FIXES:
+  - Fixed Google Sign-In failing after first use due to cached Google Play Services
+    session. Added signOut() before every signIn() call to force a fresh account
+    picker each time.
+  - Fixed generic "Sign-In failed" error message hiding the real error. Auth hub
+    and login page now display the actual exception message in the snackbar,
+    making issues diagnosable without debug tools.
+  - Fixed DEVELOPER_ERROR (code 10) by correcting app package name from
+    com.example.myapp to com.vakyapro.app across build.gradle.kts, AndroidManifest,
+    and MainActivity, matching the registered Android OAuth client in Google Cloud
+    Console.
+
+--------------------------------------------------------------------------------
 [TEMPLATE FOR NEXT BUILD — copy and fill in]
 --------------------------------------------------------------------------------
 [BUILD X.X.X] — <Short Title>
 Date: YYYY-MM-DD
 --------------------------------------------------------------------------------
 NEW FEATURES:
-  - 
+  -
 
 IMPROVEMENTS:
-  - 
+  -
 
 BUG FIXES:
-  - 
+  -
 
 
 ================================================================================
