@@ -107,7 +107,13 @@ Login or Register using Google Sign-In.
     - Create/Use **OAuth Client ID (Web application)** (only Client ID needed) and set it in app as `serverClientId` so that app can receive `idToken`.
 - **Backend**:
   - Set `.env`:
-    - `GOOGLE_CLIENT_ID=<WEB_CLIENT_ID>`
+    - `GOOGLE_CLIENT_ID=<EXPECTED_AUD_CLIENT_ID>`
+
+**Which Client ID should backend use?**
+- Backend `GOOGLE_CLIENT_ID` ko `idToken` ke `aud` se match karta hai.
+- Agar app `serverClientId` me **WEB client id** use kar rahi hai, to `aud` bhi web client id hota hai → `GOOGLE_CLIENT_ID=<WEB_CLIENT_ID>`
+- Agar app me `serverClientId` set nahi hai aur default `idToken` aa raha hai, to `aud` aksar **Android client id** hota hai → `GOOGLE_CLIENT_ID=<ANDROID_CLIENT_ID>`
+- Multiple allow: comma-separated values (example): `GOOGLE_CLIENT_ID=<WEB_CLIENT_ID>,<ANDROID_CLIENT_ID>`
 
 **Important**
 - Is flow me **client secret ki zarurat nahi**.

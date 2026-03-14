@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter build:*)",
+      "Bash(keytool -list -v -keystore \"%USERPROFILE%\\\\.android\\\\debug.keystore\" -alias androiddebugkey -storepass android -keypass android)",
+      "Bash(keytool -list -v -keystore \"$USERPROFILE/.android/debug.keystore\" -alias androiddebugkey -storepass android -keypass android)",
+      "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/keytool\" -list -v -keystore \"$USERPROFILE/.android/debug.keystore\" -alias androiddebugkey -storepass android -keypass android)",
+      "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/keytool.exe\" -list -v -keystore \"$USERPROFILE/.android/debug.keystore\" -alias androiddebugkey -storepass android -keypass android)"
+    ]
+  }
+}
