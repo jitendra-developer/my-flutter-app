@@ -40,19 +40,6 @@ class SettingsPage extends StatelessWidget {
               context.push('/language-selection');
             },
           ),
-          const Divider(color: Colors.white10, height: 32),
-          _buildSettingsTile(
-            context,
-            icon: Icons.person,
-            title: chatProvider.l10n.translate('profile'),
-            subtitle: _getSubtitleForProfile(chatProvider.appLanguage),
-            onTap: () {
-              // Future features
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(chatProvider.l10n.translate('profile') + ' coming soon!')),
-              );
-            },
-          ),
         ],
       ),
     );
@@ -60,31 +47,16 @@ class SettingsPage extends StatelessWidget {
 
   String _getSubtitleForLanguage(String lang) {
     switch (lang) {
-      case 'Hindi': return 'ऐप की भाषा बदलें';
-      case 'Marathi': return 'अॅपची भाषा बदला';
-      case 'Gujarati': return 'એપ્લિકેશનની ભાષા બદલો';
-      case 'Tamil': return 'பயன்பாட்டு மொழியை மாற்றவும்';
-      case 'Telugu': return 'యాప్ భాషను మార్చండి';
-      case 'Bengali': return 'অ্যাপের ভাষা পরিবর্তন করুন';
-      case 'Kannada': return 'ಅಪ್ಲಿಕೇಶನ್ ಭಾಷೆಯನ್ನು ಬದಲಾಯಿಸಿ';
-      case 'Malayalam': return 'ആപ്പ് ഭാഷ മാറ്റുക';
-      case 'Punjabi': return 'ਐਪ ਦੀ ਭਾਸ਼ਾ ਬਦਲੋ';
+      case 'hi': return '\u0910\u092a \u0915\u0940 \u092d\u093e\u0937\u093e \u092c\u0926\u0932\u0947\u0902';
+      case 'mr': return '\u0905\u0945\u092a\u091a\u0940 \u092d\u093e\u0937\u093e \u092c\u0926\u0932\u093e';
+      case 'gu': return '\u0a8f\u0aaa\u0acd\u0ab2\u0abf\u0a95\u0ac7\u0ab6\u0aa8\u0aa8\u0ac0 \u0aad\u0abe\u0ab7\u0abe \u0aac\u0aa6\u0ab2\u0acb';
+      case 'ta': return '\u0baa\u0baf\u0ba9\u0bcd\u0baa\u0bbe\u0b9f\u0bcd\u0b9f\u0bc1 \u0bae\u0bca\u0bb4\u0bbf\u0baf\u0bc8 \u0bae\u0bbe\u0bb1\u0bcd\u0bb1\u0bb5\u0bc1\u0bae\u0bcd';
+      case 'te': return '\u0c2f\u0c3e\u0c2a\u0c4d \u0c2d\u0c3e\u0c37\u0c28\u0c41 \u0c2e\u0c3e\u0c30\u0c4d\u0c1a\u0c02\u0c21\u0c3f';
+      case 'bn': return '\u0985\u09cd\u09af\u09be\u09aa\u09c7\u09b0 \u09ad\u09be\u09b7\u09be \u09aa\u09b0\u09bf\u09ac\u09b0\u09cd\u09a4\u09a8 \u0995\u09b0\u09c1\u09a8';
+      case 'kn': return '\u0c85\u0caa\u0ccd\u0cb2\u0cbf\u0c95\u0cc7\u0cb6\u0ca8\u0ccd \u0cad\u0cbe\u0cb7\u0cc6\u0caf\u0ca8\u0ccd\u0ca8\u0cc1 \u0cac\u0ca6\u0cb2\u0cbe\u0caf\u0cbf\u0cb8\u0cbf';
+      case 'ml': return '\u0d06\u0d2a\u0d4d\u0d2a\u0d4d \u0d2d\u0d3e\u0d37 \u0d2e\u0d3e\u0d31\u0d4d\u0d31\u0d41\u0d15';
+      case 'pa': return '\u0a10\u0a2a \u0a26\u0a40 \u0a2d\u0a3e\u0a38\u0a3c\u0a3e \u0a2c\u0a26\u0a32\u0a4b';
       default: return 'Change the app language';
-    }
-  }
-
-  String _getSubtitleForProfile(String lang) {
-    switch (lang) {
-      case 'Hindi': return 'अपना विवरण अपडेट करें';
-      case 'Marathi': return 'आपले तपशील अपडेट करा';
-      case 'Gujarati': return 'તમારી વિગતો અપડેટ કરો';
-      case 'Tamil': return 'உங்கள் விவரங்களைப் புதுப்பிக்கவும்';
-      case 'Telugu': return 'మీ వివరాలను అప్‌డేట్ చేయండి';
-      case 'Bengali': return 'আপনার বিবরণ আপডেট করুন';
-      case 'Kannada': return 'ನಿಮ್ಮ ವಿವರಗಳನ್ನು ನವೀಕರಿಸಿ';
-      case 'Malayalam': return 'നിങ്ങളുടെ വിശദാംശങ്ങൾ അപ്‌ഡേറ്റ് ചെയ്യുക';
-      case 'Punjabi': return 'ਆਪਣੇ ਵੇਰਵਿਆਂ ਨੂੰ ਅਪਡੇਟ ਕਰੋ';
-      default: return 'Update your details';
     }
   }
 

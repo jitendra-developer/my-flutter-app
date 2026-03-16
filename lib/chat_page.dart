@@ -17,6 +17,7 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:myapp/services/api_service.dart';
+import 'package:myapp/screens/profile_page.dart';
 import 'chat_provider.dart';
 import 'history_page.dart';
 import 'screens/pre_prompts_page.dart';
@@ -34,6 +35,8 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final ApiService _apiService = ApiService();
   String _userName = 'User Name';
+  String _userInitials = 'U';
+  String? _userAvatarUrl;
 
   @override
   void initState() {
@@ -41,20 +44,52 @@ class _ChatPageState extends State<ChatPage> {
     _loadUserProfile();
   }
 
+  @override
+  void deactivate() {
+    // Stop voice mode immediately whenever the user navigates away from chat
+    final cp = Provider.of<ChatProvider>(context, listen: false);
+    if (cp.isContinuousVoiceMode) {
+      cp.setContinuousVoiceMode(false);
+      ChatInputField.globalKey.currentState?.stopListening();
+    }
+    super.deactivate();
+  }
+
   Future<void> _loadUserProfile() async {
+    // 1. Show cached data instantly (no flicker)
+    final cached = await loadProfileCache();
+    final cachedName = cached['name'] ?? '';
+    if (mounted && cachedName.isNotEmpty) {
+      setState(() {
+        _userName = cachedName.trim().split(' ').first;
+        _userInitials = profileInitials(cachedName);
+        _userAvatarUrl = cached['avatarUrl'];
+      });
+    }
+
+    // 2. Refresh from API silently in the background
     try {
       if (await _apiService.hasToken()) {
         final profile = await _apiService.getProfile();
-        if (mounted && profile.containsKey('name')) {
-          final String name = profile['name']?.toString() ?? 'User';
+        final String name = profile['name']?.toString() ?? cachedName;
+        final String email = profile['email']?.toString() ?? '';
+        final String? avatarUrl = profile['avatar']?.toString() ??
+            profile['profile_photo_url']?.toString();
+        if (name.isNotEmpty) {
+          await saveProfileCache(name, email, avatarUrl);
+        }
+        if (mounted) {
           setState(() {
-            _userName = name.trim().split(' ').first;
-            if (_userName.isEmpty) _userName = 'User';
+            _userName = name.trim().split(' ').first.isNotEmpty
+                ? name.trim().split(' ').first
+                : 'User';
+            _userInitials = profileInitials(name);
+            _userAvatarUrl = avatarUrl;
           });
         }
       }
     } catch (e) {
-      debugPrint('Error loading user profile: $e');
+      debugPrint('Error refreshing user profile: $e');
     }
   }
 
@@ -122,9 +157,17 @@ class _ChatPageState extends State<ChatPage> {
             const Spacer(),
             const Divider(color: Colors.white24),
             ListTile(
-              leading: const Icon(Icons.account_circle, color: Colors.white),
+              leading: ProfileAvatar(
+                name: _userInitials,
+                avatarUrl: _userAvatarUrl,
+                radius: 16,
+                fontSize: 13,
+              ),
               title: Text(_userName, style: const TextStyle(color: Colors.white, fontSize: 16)),
-              onTap: () {},
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/profile').then((_) => _loadUserProfile());
+              },
             ),
             ListTile(
               leading: const Icon(Icons.settings, color: Colors.white),
@@ -230,8 +273,13 @@ class _ChatPageState extends State<ChatPage> {
           SafeArea(
             child: Consumer<ChatProvider>(
               builder: (context, provider, child) {
-                if (provider.messages.isEmpty) return const SizedBox.shrink();
-                return ChatInputField(key: ChatInputField.globalKey);
+                return Offstage(
+                  // Keep input bar hidden only when no messages AND not in voice mode.
+                  // When voice mode starts from the welcome screen, show the input bar
+                  // so the stop button is always reachable.
+                  offstage: provider.messages.isEmpty && !provider.isContinuousVoiceMode,
+                  child: ChatInputField(key: ChatInputField.globalKey),
+                );
               },
             ),
           ),
@@ -256,7 +304,9 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = Provider.of<ChatProvider>(context).l10n;
+    final chatProvider = Provider.of<ChatProvider>(context);
+    final l10n = chatProvider.l10n;
+    final isVoiceMode = chatProvider.isContinuousVoiceMode;
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
       child: Column(
@@ -294,95 +344,197 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 32),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1C1C24),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white10),
-            ),
-            child: TextField(
-              controller: _promptController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: l10n.translate('describe_placeholder'),
-                hintStyle: const TextStyle(color: Color(0xFF8F8F99)),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF8F8F99)),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+
+          if (isVoiceMode) ...[
+            // ── Listening state ─────────────────────────────────────────────
+            const SizedBox(height: 48),
+            Center(
+              child: SpinKitPulse(
+                color: const Color(0xFF4A60D4),
+                size: 110,
               ),
-              onSubmitted: (text) => _sendPrompt(context, text),
             ),
-          ),
-          const SizedBox(height: 16),
-          GestureDetector(
-            onTap: () => _sendPrompt(context, _promptController.text),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+            const SizedBox(height: 32),
+            Text(
+              'Listening...',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Speak to start your conversation',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFF8F8F99),
+                fontSize: 15,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Tap the stop button below to cancel',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFF8F8F99).withOpacity(0.6),
+                fontSize: 13,
+              ),
+            ),
+          ] else ...[
+            // ── Normal welcome state ────────────────────────────────────────
+            const SizedBox(height: 32),
+            Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF3B2E7E), Color(0xFF4A60D4)],
-                ),
+                color: const Color(0xFF1C1C24),
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white10),
               ),
-              child: Center(
-                child: Text(
-                  l10n.translate('generate_prompt'),
-                  style: GoogleFonts.plusJakartaSans(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+              child: TextField(
+                controller: _promptController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: l10n.translate('describe_placeholder'),
+                  hintStyle: const TextStyle(color: Color(0xFF8F8F99)),
+                  prefixIcon: const Icon(Icons.search, color: Color(0xFF8F8F99)),
+                  border: InputBorder.none,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                ),
+                onSubmitted: (text) => _sendPrompt(context, text),
+              ),
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () => _sendPrompt(context, _promptController.text),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF3B2E7E), Color(0xFF4A60D4)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: Text(
+                    l10n.translate('generate_prompt'),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 32),
-          Text(
-            l10n.translate('prompt_types'),
-            style: GoogleFonts.plusJakartaSans(
-              color: const Color(0xFF8F8F99),
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+            const SizedBox(height: 16),
+
+            // ── "or" divider ──────────────────────────────────────────────
+            Row(
+              children: [
+                const Expanded(child: Divider(color: Colors.white10, thickness: 1)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'or',
+                    style: GoogleFonts.plusJakartaSans(
+                      color: const Color(0xFF8F8F99),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const Expanded(child: Divider(color: Colors.white10, thickness: 1)),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final crossAxisCount = width > 600 ? 4 : 2;
-              final aspectRatio = width > 600 ? 4.0 : 3.0;
-              return GridView.count(
-                crossAxisCount: crossAxisCount,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: aspectRatio,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                children: [
-                  _buildTypeCard(Icons.image, 'Image AI', Colors.blueAccent),
-                  _buildTypeCard(Icons.chat, 'ChatGPT', Colors.tealAccent),
-                  _buildTypeCard(Icons.campaign, l10n.translate('marketing'), Colors.purpleAccent),
-                  _buildTypeCard(Icons.code, l10n.translate('coding'), Colors.lightBlueAccent),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 32),
-          Text(
-            l10n.translate('try_prompts'),
-            style: GoogleFonts.plusJakartaSans(
-              color: const Color(0xFF8F8F99),
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+            const SizedBox(height: 16),
+
+            // ── Voice mode button ─────────────────────────────────────────
+            GestureDetector(
+              onTap: () {
+                final provider =
+                    Provider.of<ChatProvider>(context, listen: false);
+                provider.setContinuousVoiceMode(true);
+                ChatInputField.globalKey.currentState?.startListening();
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                  border:
+                      Border.all(color: const Color(0xFF4A60D4), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.mic_none_rounded,
+                        color: Color(0xFF4A60D4), size: 22),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Start with Voice',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: const Color(0xFF4A60D4),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _buildTryPrompt(context, l10n.translate('try_prompt_1')),
-          _buildTryPrompt(context, l10n.translate('try_prompt_2')),
-          _buildTryPrompt(context, l10n.translate('try_prompt_3')),
-          _buildTryPrompt(context, l10n.translate('try_prompt_4')),
+            const SizedBox(height: 32),
+
+            Text(
+              l10n.translate('prompt_types'),
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFF8F8F99),
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final crossAxisCount = width > 600 ? 4 : 2;
+                final aspectRatio = width > 600 ? 4.0 : 3.0;
+                return GridView.count(
+                  crossAxisCount: crossAxisCount,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: aspectRatio,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  children: [
+                    _buildTypeCard(Icons.image, 'Image AI', Colors.blueAccent),
+                    _buildTypeCard(Icons.chat, 'ChatGPT', Colors.tealAccent),
+                    _buildTypeCard(Icons.campaign,
+                        l10n.translate('marketing'), Colors.purpleAccent),
+                    _buildTypeCard(Icons.code,
+                        l10n.translate('coding'), Colors.lightBlueAccent),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 32),
+            Text(
+              l10n.translate('try_prompts'),
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFF8F8F99),
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildTryPrompt(context, l10n.translate('try_prompt_1')),
+            _buildTryPrompt(context, l10n.translate('try_prompt_2')),
+            _buildTryPrompt(context, l10n.translate('try_prompt_3')),
+            _buildTryPrompt(context, l10n.translate('try_prompt_4')),
+          ],
         ],
       ),
     );
@@ -876,11 +1028,6 @@ class _ChatInputFieldState extends State<ChatInputField> {
       color: const Color(0xFF1C1C24),
       child: Column(
         children: [
-          if (chatProvider.isResponding)
-            ElevatedButton(
-              onPressed: () => chatProvider.stopResponding(),
-              child: Text(chatProvider.l10n.translate('stop_responding')),
-            ),
           if (_selectedImagePath != null)
             Stack(
               children: [
@@ -1058,53 +1205,77 @@ class _ChatInputFieldState extends State<ChatInputField> {
                 ),
               ),
               const SizedBox(width: 6),
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.only(bottom: 4),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
-                    colors: [Color(0xFF3B2E7E), Color(0xFF4A60D4)],
+                    colors: (chatProvider.isContinuousVoiceMode || chatProvider.isResponding)
+                        ? const [Color(0xFF7E2020), Color(0xFFD44040)]
+                        : const [Color(0xFF3B2E7E), Color(0xFF4A60D4)],
                   ),
                 ),
-                child: chatProvider.isContinuousVoiceMode
-                  ? IconButton(
-                      onPressed: () {
-                        chatProvider.setContinuousVoiceMode(false);
-                        _speechToText.stop();
-                        if (chatProvider.isResponding) chatProvider.stopResponding();
-                        setState(() {
-                          _isListening = false;
-                        });
-                      },
-                      icon: const Icon(Icons.stop_rounded, color: Colors.redAccent),
-                      tooltip: 'End Voice Mode',
-                    )
-                  : IconButton(
-                      icon: _controller.text.trim().isEmpty && _selectedImagePath == null && _selectedDocumentPath == null
-                          ? const Icon(Icons.mic_none_rounded, color: Colors.white)
-                          : const Icon(Icons.arrow_upward_rounded, color: Colors.white),
-                      onPressed: () {
-                        if (_controller.text.trim().isEmpty && _selectedImagePath == null && _selectedDocumentPath == null) {
-                           chatProvider.setContinuousVoiceMode(true);
-                           startListening();
-                        } else {
-                          final text = _controller.text.trim();
-                          chatProvider.sendMessage(
-                            text,
-                            imagePath: _selectedImagePath,
-                            documentPath: _selectedDocumentPath,
-                            documentName: _selectedDocumentName,
-                          );
-                          _controller.clear();
-                          setState(() {
-                            _selectedImagePath = null;
-                            _selectedDocumentPath = null;
-                            _selectedDocumentName = null;
-                          });
-                          _lastWords = '';
-                        }
-                      },
-                    ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  switchInCurve: Curves.easeIn,
+                  switchOutCurve: Curves.easeOut,
+                  child: chatProvider.isContinuousVoiceMode
+                      // State 4: voice mode active → stop (ends voice + AI)
+                      ? IconButton(
+                          key: const ValueKey('stop-voice'),
+                          onPressed: () {
+                            chatProvider.setContinuousVoiceMode(false);
+                            _speechToText.stop();
+                            if (chatProvider.isResponding) chatProvider.stopResponding();
+                            setState(() => _isListening = false);
+                          },
+                          icon: const Icon(Icons.stop_rounded, color: Colors.white),
+                          tooltip: 'End Voice Mode',
+                        )
+                      : chatProvider.isResponding
+                          // State 3: AI generating → stop
+                          ? IconButton(
+                              key: const ValueKey('stop-ai'),
+                              onPressed: () => chatProvider.stopResponding(),
+                              icon: const Icon(Icons.stop_rounded, color: Colors.white),
+                              tooltip: 'Stop responding',
+                            )
+                          : (_controller.text.trim().isNotEmpty ||
+                                  _selectedImagePath != null ||
+                                  _selectedDocumentPath != null)
+                              // State 2: has content → send
+                              ? IconButton(
+                                  key: const ValueKey('send'),
+                                  icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+                                  onPressed: () {
+                                    final text = _controller.text.trim();
+                                    chatProvider.sendMessage(
+                                      text,
+                                      imagePath: _selectedImagePath,
+                                      documentPath: _selectedDocumentPath,
+                                      documentName: _selectedDocumentName,
+                                    );
+                                    _controller.clear();
+                                    setState(() {
+                                      _selectedImagePath = null;
+                                      _selectedDocumentPath = null;
+                                      _selectedDocumentName = null;
+                                    });
+                                    _lastWords = '';
+                                  },
+                                )
+                              // State 1: default → mic / start voice mode
+                              : IconButton(
+                                  key: const ValueKey('mic'),
+                                  icon: const Icon(Icons.mic_none_rounded, color: Colors.white),
+                                  onPressed: () {
+                                    chatProvider.setContinuousVoiceMode(true);
+                                    startListening();
+                                  },
+                                  tooltip: 'Voice mode',
+                                ),
+                ),
               ),
             ],
           ),

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:myapp/chat_provider.dart';
+import 'package:myapp/services/api_service.dart';
 import 'package:provider/provider.dart';
 
 class PrePromptsPage extends StatefulWidget {
@@ -19,6 +20,45 @@ class _PrePromptsPageState extends State<PrePromptsPage> {
   String _selectedSort = 'Trending';
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
+
+  // API-loaded prompts — empty until fetch completes
+  List<Map<String, dynamic>> _apiPrompts = [];
+  bool _apiLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPrompts();
+  }
+
+  Future<void> _fetchPrompts() async {
+    try {
+      final raw = await ApiService().getPrePrompts();
+      final converted = raw.map((item) {
+        final map = Map<String, dynamic>.from(item as Map);
+        // Normalise variants to List<Map<String,dynamic>>
+        final rawVariants = map['variants'];
+        if (rawVariants is List) {
+          map['variants'] = rawVariants
+              .map((v) => Map<String, dynamic>.from(v as Map))
+              .toList();
+        } else {
+          map['variants'] = <Map<String, dynamic>>[];
+        }
+        return map;
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _apiPrompts = converted;
+          _apiLoaded = true;
+        });
+      }
+    } catch (e) {
+      // Silently fall back to hardcoded prompts — no error shown to user
+      if (mounted) setState(() => _apiLoaded = true);
+    }
+  }
 
   @override
   void dispose() {
@@ -136,10 +176,14 @@ class _PrePromptsPageState extends State<PrePromptsPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Use API data once loaded and non-empty, otherwise fall back to hardcoded
+    final activePrompts =
+        (_apiLoaded && _apiPrompts.isNotEmpty) ? _apiPrompts : _allPrompts;
+
     // 1. Filter by category
     final categoryFiltered = _selectedCategory == 'Discover'
-        ? _allPrompts
-        : _allPrompts.where((p) => p['category'] == _selectedCategory).toList();
+        ? activePrompts
+        : activePrompts.where((p) => p['category'] == _selectedCategory).toList();
 
     // 2. Filter by search query
     final query = _searchController.text.toLowerCase().trim();
@@ -334,7 +378,8 @@ class _PrePromptsPageState extends State<PrePromptsPage> {
                       final promptData = filteredPrompts[index];
                       // Display the first variant on the grid
                       final variants = promptData['variants'] as List<dynamic>;
-                      final image = variants[0]['image'] as String;
+                      if (variants.isEmpty) return const SizedBox.shrink();
+                      final image = variants[0]['image']?.toString() ?? '';
 
                       return GestureDetector(
                         onTap: () {

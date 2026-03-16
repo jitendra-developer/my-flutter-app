@@ -100,7 +100,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   imagePath: slide['image'],
                   title: slide['title']!.isNotEmpty ? slide['title']! : l10n.translate("onboarding_slide${slide['index']}_title"),
                   subtitle: slide['text']!.isNotEmpty ? slide['text']! : l10n.translate("onboarding_slide${slide['index']}_subtitle"),
-                  fallbackIcon: _getIconForIndex(int.parse(slide['index']!)),
+                  fallbackIcon: _getIconForIndex(int.tryParse(slide['index'] ?? '') ?? 1),
                 );
               } else {
                 // Fallback to localized slides if no data from API

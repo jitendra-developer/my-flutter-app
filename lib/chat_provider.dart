@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -23,6 +24,10 @@ class ChatProvider with ChangeNotifier {
   bool _isContinuousVoiceMode = false;
   bool get isContinuousVoiceMode => _isContinuousVoiceMode;
   bool _isStreamingText = false;
+
+  // Cancellable stream support
+  StreamSubscription<String>? _activeStream;
+  Completer<void>? _streamCompleter;
 
   void setContinuousVoiceMode(bool value) {
     _isContinuousVoiceMode = value;
@@ -91,8 +96,21 @@ class ChatProvider with ChangeNotifier {
   }
 
   void clearOnLogout() {
+    _activeStream?.cancel();
+    _activeStream = null;
+    if (_streamCompleter != null && !_streamCompleter!.isCompleted) {
+      _streamCompleter!.complete();
+    }
+    _streamCompleter = null;
     _chatHistory.clear();
     _messages.clear();
+    _ttsQueue.clear();
+    _flutterTts.stop();
+    _isSpeaking = false;
+    _isProcessingQueue = false;
+    _isContinuousVoiceMode = false;
+    _isResponding = false;
+    _isStreamingText = false;
     _currentSessionLocalId = null;
     _isAuthenticated = false;
     notifyListeners();
@@ -192,7 +210,14 @@ class ChatProvider with ChangeNotifier {
       }
     }
 
-    final session = _chatHistory.firstWhere((s) => s.localId == localId, orElse: () => _chatHistory.first);
+    if (_chatHistory.isEmpty) {
+      createNewChat();
+      return;
+    }
+    final session = _chatHistory.firstWhere(
+      (s) => s.localId == localId,
+      orElse: () => _chatHistory.first,
+    );
     _currentSessionLocalId = session.localId;
     _messages = List.from(session.messages);
     notifyListeners();
@@ -305,6 +330,14 @@ class ChatProvider with ChangeNotifier {
   }
 
   void stopResponding() {
+    // Cancel active HTTP stream immediately
+    _activeStream?.cancel();
+    _activeStream = null;
+    // Unblock the await in sendMessage so it can exit cleanly
+    if (_streamCompleter != null && !_streamCompleter!.isCompleted) {
+      _streamCompleter!.complete();
+    }
+    _streamCompleter = null;
     _isResponding = false;
     _isStreamingText = false;
     _ttsQueue.clear();
@@ -467,6 +500,12 @@ class ChatProvider with ChangeNotifier {
     bool isImageRequest = await _isImageGenerationIntent(text, imagePath);
     developer.log('Is image request: $isImageRequest', name: 'ChatProvider');
 
+    // Guard: if the user switched/cleared chat while we were awaiting, bail out
+    if (aiMessageIndex >= _messages.length) {
+      _isStreamingText = false;
+      return;
+    }
+
     try {
       if (isImageRequest) {
         // Handle Image Generation via Backend
@@ -495,40 +534,106 @@ class ChatProvider with ChangeNotifier {
         // AI Chat
         final history = _buildMessageHistory(forVoice: isVoiceInput);
         String accumulatedText = '';
+        bool stoppedByUser = false;
 
-        try {
-          // Try streaming first
-          final stream = _apiService.aiChatStream(history);
-          bool isFirstChunk = true;
+        // ── Streaming attempt ─────────────────────────────────────────────
+        bool isFirstChunk = true;
+        _streamCompleter = Completer<void>();
 
-          await for (final chunk in stream.timeout(const Duration(seconds: 60))) {
+        _activeStream = _apiService.aiChatStream(history)
+            .timeout(const Duration(seconds: 60))
+            .listen(
+          (chunk) {
+            if (!_isResponding || aiMessageIndex >= _messages.length) return;
             if (isFirstChunk) {
+              // First token — replace the thinking placeholder with empty text
               _messages[aiMessageIndex] = Message(text: '', isUser: false);
               isFirstChunk = false;
             }
             accumulatedText += chunk;
             _messages[aiMessageIndex] = Message(text: accumulatedText, isUser: false);
             notifyListeners();
-          }
+          },
+          onDone: () {
+            if (_streamCompleter != null && !_streamCompleter!.isCompleted) {
+              _streamCompleter!.complete();
+            }
+          },
+          onError: (e) {
+            if (_streamCompleter != null && !_streamCompleter!.isCompleted) {
+              _streamCompleter!.completeError(e);
+            }
+          },
+          cancelOnError: true,
+        );
 
-          // If stream completed but sent no content, treat as failure
-          if (isFirstChunk) throw Exception('Empty stream response');
-
+        try {
+          await _streamCompleter!.future;
         } catch (streamError) {
           developer.log('Stream failed, falling back to non-streaming: $streamError', name: 'ChatProvider');
-          // Fallback to regular non-streaming endpoint
-          _messages[aiMessageIndex] = Message(text: '', isUser: false);
-          notifyListeners();
-
-          final response = await _apiService.aiChat(history);
-          accumulatedText = response['content']?.toString() ?? '';
-          _messages[aiMessageIndex] = Message(
-            text: accumulatedText.isNotEmpty ? accumulatedText : 'No response received.',
-            isUser: false,
-          );
-          notifyListeners();
+          // Fall through — handled below
+          isFirstChunk = true; // treat as no content received
+        } finally {
+          _activeStream?.cancel();
+          _activeStream = null;
+          _streamCompleter = null;
         }
 
+        // ── Stopped by user during streaming ─────────────────────────────
+        if (!_isResponding) {
+          stoppedByUser = true;
+        } else if (isFirstChunk) {
+          // Streaming produced no content → fallback to non-streaming
+          developer.log('Streaming produced no content, using fallback', name: 'ChatProvider');
+          if (aiMessageIndex < _messages.length) {
+            _messages[aiMessageIndex] = Message(text: '', isUser: false);
+            notifyListeners();
+          }
+
+          final response = await _apiService.aiChat(history);
+
+          if (!_isResponding) {
+            stoppedByUser = true;
+          } else {
+            accumulatedText = response['content']?.toString() ?? '';
+            if (accumulatedText.isEmpty) {
+              if (aiMessageIndex < _messages.length) {
+                _messages[aiMessageIndex] = Message(text: 'No response received.', isUser: false);
+                notifyListeners();
+              }
+            } else {
+              // ── Word-by-word reveal for fallback ───────────────────────
+              final words = accumulatedText.split(' ');
+              String revealed = '';
+              for (final word in words) {
+                if (aiMessageIndex >= _messages.length || !_isResponding) {
+                  stoppedByUser = !_isResponding;
+                  break;
+                }
+                revealed += (revealed.isEmpty ? '' : ' ') + word;
+                _messages[aiMessageIndex] = Message(text: revealed, isUser: false);
+                notifyListeners();
+                await Future.delayed(const Duration(milliseconds: 30));
+              }
+              // Snap to full text if we finished naturally
+              if (!stoppedByUser && _isResponding && aiMessageIndex < _messages.length) {
+                _messages[aiMessageIndex] = Message(text: accumulatedText, isUser: false);
+                notifyListeners();
+              }
+            }
+          }
+        }
+
+        // ── Clean up partial message if stopped ───────────────────────────
+        if (stoppedByUser || !_isResponding) {
+          if (aiMessageIndex < _messages.length && !_messages[aiMessageIndex].isUser) {
+            _messages.removeAt(aiMessageIndex);
+            notifyListeners();
+          }
+          return; // skip save & title generation
+        }
+
+        // ── TTS for voice mode ────────────────────────────────────────────
         if (isVoiceInput && accumulatedText.isNotEmpty) {
           final splitPattern = RegExp(r'(?<=[.!?])\s+|\n');
           final parts = accumulatedText.split(splitPattern);
@@ -553,11 +658,13 @@ class ChatProvider with ChangeNotifier {
         stackTrace: s,
         name: 'ChatProvider',
       );
-      _messages[aiMessageIndex] = Message(
-        text: 'Error: ${e.toString()}',
-        isUser: false,
-      );
-      notifyListeners();
+      if (aiMessageIndex < _messages.length) {
+        _messages[aiMessageIndex] = Message(
+          text: 'Error: ${e.toString()}',
+          isUser: false,
+        );
+        notifyListeners();
+      }
     } finally {
       _isStreamingText = false;
       _checkResponseComplete();
@@ -724,11 +831,11 @@ class Message {
 
   factory Message.fromJson(Map<String, dynamic> json) {
     return Message(
-      text: json['text'] as String,
-      isUser: json['isUser'] as bool,
-      imagePath: json['imagePath'] as String?,
-      documentPath: json['documentPath'] as String?,
-      documentName: json['documentName'] as String?,
+      text: json['text']?.toString() ?? '',
+      isUser: json['isUser'] == true,
+      imagePath: json['imagePath']?.toString(),
+      documentPath: json['documentPath']?.toString(),
+      documentName: json['documentName']?.toString(),
     );
   }
 }

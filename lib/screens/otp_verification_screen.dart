@@ -20,6 +20,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   bool _isVerifying = false;
   bool _isResending = false;
 
+  @override
+  void dispose() {
+    _otpController.dispose();
+    super.dispose();
+  }
+
   Future<void> _verifyOtp() async {
     if (_otpController.text.length != 6) {
       showFeedback(context, 'Please enter a 6-digit OTP.', isError: true);

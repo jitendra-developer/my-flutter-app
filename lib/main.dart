@@ -7,9 +7,11 @@ import 'package:myapp/login_page.dart';
 import 'package:myapp/onboarding_screen.dart';
 import 'package:myapp/register.dart';
 import 'package:myapp/screens/otp_verification_screen.dart';
+import 'package:myapp/screens/reset_password_screen.dart';
 import 'package:myapp/welcome_page.dart';
 import 'package:myapp/screens/settings_page.dart';
 import 'package:myapp/screens/language_selection_page.dart';
+import 'package:myapp/screens/profile_page.dart';
 import 'package:myapp/services/api_service.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -95,6 +97,17 @@ class _MyAppState extends State<MyApp> {
         GoRoute(
           path: '/language-selection',
           builder: (context, state) => const LanguageSelectionPage(),
+        ),
+        GoRoute(
+          path: '/profile',
+          builder: (context, state) => const ProfilePage(),
+        ),
+        GoRoute(
+          path: '/reset-password',
+          builder: (context, state) {
+            final email = state.extra as String? ?? '';
+            return ResetPasswordScreen(email: email);
+          },
         ),
       ],
       redirect: (context, state) async {

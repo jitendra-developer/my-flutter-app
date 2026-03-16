@@ -254,6 +254,176 @@ IMPROVEMENTS:
     passed to ChatProvider constructor, never overwritten by background async tasks.
 
 --------------------------------------------------------------------------------
+[BUILD 2.5.0] — Microphone Permission Fix & Stability / Bug Fix Batch
+Date: 2026-03-16
+--------------------------------------------------------------------------------
+IMPROVEMENTS:
+  - Microphone permission is now requested lazily — the OS permission dialog only
+    appears the first time the user taps the Voice Mode button, never at app
+    startup or login. Permission is stored at the device/OS level and persists
+    across sessions without being tied to any user profile.
+  - Speech-to-text engine (SpeechToText) is now lazy-initialized: it is only
+    instantiated after microphone permission is confirmed granted, not in
+    initState(), eliminating the early permission prompt entirely.
+
+BUG FIXES:
+  - Fixed logout leaving stale TTS audio playing: clearOnLogout() now stops the
+    TTS engine, clears the TTS queue, and resets all voice/responding state
+    (isSpeaking, isProcessingQueue, isContinuousVoiceMode, isResponding).
+  - Fixed crash when switchChat() was called with an empty chat history list:
+    added an isEmpty guard that falls back to createNewChat() instead of calling
+    .first on an empty list (StateError).
+  - Fixed index-out-of-bounds crash in sendMessage() when the user switched or
+    cleared the chat while an AI response was still streaming. Added aiMessageIndex
+    bounds checks after every await point; if the session changed mid-flight the
+    in-progress response exits cleanly.
+  - Fixed Message.fromJson() crashing on malformed API data: replaced hard
+    'as String' / 'as bool' type casts with safe .toString() and == true
+    equivalents so no TypeError is thrown on unexpected field types or nulls.
+  - Fixed Settings page language subtitles always showing English: switch cases
+    were comparing against full language names ('Hindi', 'Marathi') but
+    appLanguage stores ISO codes ('hi', 'mr'). Updated all cases in both
+    _getSubtitleForLanguage() and _getSubtitleForProfile() to use the correct
+    language codes.
+  - Fixed memory leak in OTP Verification screen: TextEditingController
+    (_otpController) was never disposed. Added dispose() override to release it
+    when the screen is unmounted.
+  - Fixed crash on Pre-Prompts grid when the API returns a prompt with an empty
+    variants list: added an isEmpty guard before variants[0] is accessed;
+    affected grid items are now skipped silently instead of throwing RangeError.
+  - Fixed crash in API error response parsing: the errors map values were blindly
+    cast to List, which threw TypeError when the API returned a plain String
+    value. Now checks type before casting and falls back to .toString() for
+    non-List values.
+  - Fixed crash in Onboarding screen when slide['index'] from the API contained
+    a non-numeric or null value: replaced int.parse() with int.tryParse() and
+    added a safe fallback of 1 to prevent FormatException.
+
+--------------------------------------------------------------------------------
+[BUILD 2.5.1] — User Profile Screen & Password Management
+Date: 2026-03-16
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Added full User Profile screen (/profile route) accessible by tapping the
+    user name/avatar in the sidebar drawer.
+  - Profile page is a single scrollable page (no popup/bottom sheet) with two
+    sections:
+
+    PROFILE section:
+      * Avatar automatically loaded from the account's email/Google profile
+        picture via the API — displayed on first open without any setup.
+      * Camera button on avatar to pick a new photo from gallery; the new photo
+        is shown immediately and saved permanently on "Save Changes".
+      * Name text field — editable inline; display name at the top updates live
+        as you type.
+      * Email field — read-only with lock icon, shows the connected account email.
+      * "Save Changes" button — calls PUT /api/profile; result persisted to
+        SharedPreferences so the profile survives app restarts immediately.
+
+    PASSWORD section:
+      * Current Password field with eye/hide toggle.
+      * New Password field with eye/hide toggle.
+      * Confirm New Password field with eye/hide toggle.
+      * "Change Password" button — calls PUT /api/profile/password with
+        current_password, password, password_confirmation. The new password
+        takes effect in the backend database immediately; user must use it
+        on next login.
+      * Validation: minimum 8 characters, passwords must match.
+
+  - Sidebar profile tile now shows a purple initials avatar (first + last
+    initial) matching the logged-in user's name instead of a generic icon.
+  - Profile cache (name, email, avatar URL) stored in SharedPreferences —
+    displayed instantly on every open, refreshed silently from API in background.
+
+--------------------------------------------------------------------------------
+[BUILD 2.5.2] — Forgot Password via OTP in Profile
+Date: 2026-03-16
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Added "Forgot Password?" link in the Profile page, directly below the
+    Current Password field. Tapping it sends an OTP to the user's registered
+    email without leaving the profile page.
+  - New Reset Password screen: accepts the 6-digit OTP from email + new
+    password + confirm password. On success the backend password is updated
+    immediately and the user is returned to the Profile page.
+  - "Resend" link on the Reset Password screen re-triggers the OTP email
+    without navigating away.
+  - All fields on the Reset Password screen match the global dark color palette
+    (background #13131A, input #2C2C2C, accent #4A60D4).
+
+--------------------------------------------------------------------------------
+[BUILD 2.5.3] — Stop Button Fix, Word-by-Word Animation & UI Cleanup
+Date: 2026-03-16
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - AI response now appears word-by-word (typewriter effect) on the fallback
+    non-streaming endpoint — 30ms per word, keeping the user engaged while
+    reading rather than having the full response appear instantly.
+  - Streaming responses (SSE) now display each token as it arrives from the
+    server, giving a natural progressive feel when the backend streams properly.
+
+IMPROVEMENTS:
+  - Stop button relocated: removed the separate "Stop Responding" button that
+    appeared above the input field. The single circular button at the right of
+    the input now handles all four states:
+      1. Mic icon   — default, no text, AI not responding
+      2. Send icon  — user has typed something
+      3. Stop icon  — AI is generating a response (red gradient)
+      4. Stop icon  — voice mode is active (red gradient)
+    AnimatedSwitcher crossfades between icons; AnimatedContainer transitions
+    the gradient from purple → red when entering a stop state.
+  - Removed "Profile" option from Settings page — profile is now accessible
+    directly via the user tile in the sidebar drawer, making the Settings page
+    focused on app-level config (language only).
+
+BUG FIXES:
+  - Fixed stop button not cancelling the AI response. Root cause: the streaming
+    loop used `await for` which cannot be interrupted from outside. Replaced
+    with StreamSubscription + Completer so stopResponding() can call
+    subscription.cancel() and complete the Completer immediately, unblocking
+    sendMessage() within one event loop tick.
+  - Fixed partial/empty AI message lingering in the chat after stop is pressed.
+    sendMessage() now detects !_isResponding after the stream exits and removes
+    the in-progress message from _messages before notifying listeners — chat
+    history is clean instantly.
+  - Fixed word-by-word fallback loop setting the full text after the user
+    stopped mid-animation. Loop now checks !_isResponding on every word and
+    exits without writing the full string; message is removed instead.
+  - Fixed clearOnLogout() not cancelling an active stream — added
+    _activeStream?.cancel() and _streamCompleter completion to prevent
+    dangling HTTP connections after logout.
+
+--------------------------------------------------------------------------------
+[BUILD 2.5.4] — Pre-Prompts Backend Integration & Voice Mode Auto-Stop
+Date: 2026-03-16
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Pre-Prompts page now loads from the backend API (GET /api/pre-prompts) so
+    prompts can be updated server-side without releasing a new app version.
+    - Masonry grid layout and all existing functionality preserved.
+    - App shows the built-in hardcoded prompts immediately on load (no blank
+      screen), then silently replaces them with API data once the request
+      completes.
+    - Error or empty API response falls back to the hardcoded prompts
+      transparently — no error state shown to the user.
+  - "Start with Voice" button added to the Chat welcome screen below the
+    Generate Prompt button, letting users enter voice mode without typing a
+    message first.
+    - When activated, the welcome screen transforms: shows a SpinKitPulse
+      animation, "Listening..." heading, and a hint to use the stop button
+      below to cancel — consistent with the rest of the voice mode UX.
+    - The input bar becomes visible during voice mode on the welcome screen
+      (previously hidden when no messages existed) so the stop button is
+      always reachable.
+
+IMPROVEMENTS:
+  - Voice mode now stops instantly whenever the user navigates away from the
+    Chat screen — opening Settings, Profile, History, or any other screen
+    releases the microphone immediately. Implemented via deactivate() lifecycle
+    hook in ChatPage so it works for all navigation types (GoRouter push,
+    drawer navigation, back gestures, etc.).
+
+--------------------------------------------------------------------------------
 [TEMPLATE FOR NEXT BUILD — copy and fill in]
 --------------------------------------------------------------------------------
 [BUILD X.X.X] — <Short Title>

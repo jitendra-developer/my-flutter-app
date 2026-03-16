@@ -36,10 +36,13 @@ class ApiService {
       String errorMessage = 'Unexpected error occurred';
       try {
         final errorData = json.decode(response.body);
-        if (errorData['errors'] != null) {
-          // Format validation errors
-          final Map<String, dynamic> errors = errorData['errors'];
-          errorMessage = errors.values.map((e) => (e as List).join(', ')).join('\n');
+        if (errorData['errors'] != null && errorData['errors'] is Map) {
+          // Format validation errors safely — values may be List or plain String
+          final Map<String, dynamic> errors = Map<String, dynamic>.from(errorData['errors'] as Map);
+          errorMessage = errors.values.map((e) {
+            if (e is List) return e.join(', ');
+            return e?.toString() ?? '';
+          }).join('\n');
         } else if (errorData['message'] != null) {
           errorMessage = errorData['message'];
         }
@@ -194,6 +197,56 @@ class ApiService {
     return data is Map ? Map<String, dynamic>.from(data) : {};
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    final url = Uri.parse('$baseUrl/profile/password');
+    final response = await http.put(
+      url,
+      headers: await _getHeaders(isAuth: true),
+      body: json.encode({
+        'current_password': currentPassword,
+        'password': newPassword,
+        'password_confirmation': newPasswordConfirmation,
+      }),
+    );
+    _handleResponse(response);
+  }
+
+  /// Sends a password-reset OTP to the given email.
+  Future<void> forgotPasswordOtp(String email) async {
+    final url = Uri.parse('$baseUrl/auth/password/forgot');
+    final response = await http.post(
+      url,
+      headers: await _getHeaders(),
+      body: json.encode({'email': email}),
+    );
+    _handleResponse(response);
+  }
+
+  /// Verifies the OTP and sets a new password in one call.
+  Future<void> resetPasswordWithOtp({
+    required String email,
+    required String otp,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    final url = Uri.parse('$baseUrl/auth/password/reset');
+    final response = await http.post(
+      url,
+      headers: await _getHeaders(),
+      body: json.encode({
+        'email': email,
+        'code': otp,
+        'password': newPassword,
+        'password_confirmation': newPasswordConfirmation,
+      }),
+    );
+    _handleResponse(response);
+  }
+
   // --- 4. AI Features (Protected) ---
 
   Future<Map<String, dynamic>> generatePrompt(String prompt, {List<dynamic>? history, int questionCount = 0}) async {
@@ -337,7 +390,17 @@ class ApiService {
     _handleResponse(response);
   }
 
-  // --- 6. Plans & Data (Public) ---
+  // --- 6. Pre-Prompts (Protected) ---
+
+  Future<List<dynamic>> getPrePrompts() async {
+    final url = Uri.parse('$baseUrl/pre-prompts');
+    final response = await http.get(url, headers: await _getHeaders(isAuth: true));
+    final data = _handleResponse(response);
+    if (data is Map) return data['data'] ?? [];
+    return data is List ? data : [];
+  }
+
+  // --- 7. Plans & Data (Public) ---
   
   Future<List<dynamic>> getPlans() async {
     final url = Uri.parse('$baseUrl/plans');
