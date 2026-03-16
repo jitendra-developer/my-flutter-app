@@ -679,6 +679,7 @@ class _ChatInputFieldState extends State<ChatInputField> {
   final _controller = TextEditingController();
   final stt.SpeechToText _speechToText = stt.SpeechToText();
   bool _isListening = false;
+  bool _speechInitialized = false;
   String _lastWords = '';
   String? _selectedImagePath;
   String? _selectedDocumentPath;
@@ -703,12 +704,14 @@ class _ChatInputFieldState extends State<ChatInputField> {
   @override
   void initState() {
     super.initState();
-    _initSpeech();
+    // Do NOT initialize speech here — lazy-init on first voice mode use
+    // so the OS microphone permission dialog is never shown at startup.
   }
 
-  void _initSpeech() async {
+  Future<bool> _initSpeech() async {
+    if (_speechInitialized) return true;
     try {
-      await _speechToText.initialize(
+      final result = await _speechToText.initialize(
         onStatus: (status) {
           if (status == 'done' || status == 'notListening') {
             _onSpeechEnd();
@@ -716,8 +719,11 @@ class _ChatInputFieldState extends State<ChatInputField> {
         },
         onError: (errorNotification) => debugPrint('STT error: $errorNotification'),
       );
+      _speechInitialized = result;
+      return result;
     } catch (e) {
       debugPrint('STT init failed: $e');
+      return false;
     }
   }
 
@@ -822,6 +828,15 @@ class _ChatInputFieldState extends State<ChatInputField> {
     if (status != PermissionStatus.granted) {
       chatProvider.setContinuousVoiceMode(false);
       return;
+    }
+
+    // Lazy-init the STT engine now that permission is confirmed
+    if (!_speechInitialized) {
+      final ok = await _initSpeech();
+      if (!ok) {
+        chatProvider.setContinuousVoiceMode(false);
+        return;
+      }
     }
 
     if (chatProvider.isResponding) {
