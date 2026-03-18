@@ -12,6 +12,7 @@ import 'package:myapp/welcome_page.dart';
 import 'package:myapp/screens/settings_page.dart';
 import 'package:myapp/screens/language_selection_page.dart';
 import 'package:myapp/screens/profile_page.dart';
+import 'package:myapp/screens/learn_page.dart';
 import 'package:myapp/services/api_service.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -108,6 +109,10 @@ class _MyAppState extends State<MyApp> {
             final email = state.extra as String? ?? '';
             return ResetPasswordScreen(email: email);
           },
+        ),
+        GoRoute(
+          path: '/learn',
+          builder: (context, state) => const LearnPage(),
         ),
       ],
       redirect: (context, state) async {

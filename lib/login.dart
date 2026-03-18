@@ -49,6 +49,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       developer.log('Login error: $e', error: e);
+      if (!mounted) return;
       if (e.toString().contains('credentials') || e.toString().contains('does not exist')) {
         showFeedback(
           context,
@@ -113,8 +114,9 @@ class _LoginPageState extends State<LoginPage> {
                     icon: Icons.email_outlined,
                     hint: l10n.translate('enter_email'),
                     validator: (value) {
-                      if (value == null || value.isEmpty)
+                      if (value == null || value.isEmpty) {
                         return 'Please enter an email';
+                      }
                       if (!RegExp(r'^\S+@\S+\.\S+$').hasMatch(value)) {
                         return 'Please enter a valid email address';
                       }
@@ -128,8 +130,9 @@ class _LoginPageState extends State<LoginPage> {
                     hint: l10n.translate('password'),
                     isPassword: true,
                     validator: (value) {
-                      if (value == null || value.isEmpty)
+                      if (value == null || value.isEmpty) {
                         return 'Please enter a password';
+                      }
                       return null;
                     },
                   ),
@@ -282,6 +285,7 @@ class _LoginPageState extends State<LoginPage> {
               final apiService = ApiService();
               if (await apiService.hasToken()) {
                  developer.log('Google login confirmed, navigating to chat');
+                 if (!mounted) return;
                  Provider.of<ChatProvider>(context, listen: false).initializeAfterAuth();
                  context.go('/chat');
               }
@@ -295,6 +299,7 @@ class _LoginPageState extends State<LoginPage> {
           }
         } catch (e) {
           developer.log('$type Sign-In failed: $e', error: e);
+          if (!mounted) return;
           showFeedback(
             context,
             e.toString().replaceAll('Exception: ', ''),

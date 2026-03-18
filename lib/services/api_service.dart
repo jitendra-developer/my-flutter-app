@@ -400,7 +400,100 @@ class ApiService {
     return data is List ? data : [];
   }
 
-  // --- 7. Plans & Data (Public) ---
+  // --- 7. Learn Articles (Protected) ---
+
+  Future<List<dynamic>> getLearnArticles() async {
+    final url = Uri.parse('$baseUrl/learn');
+    final response = await http.get(url, headers: await _getHeaders(isAuth: true));
+    final data = _handleResponse(response);
+    if (data is Map) return data['data'] ?? [];
+    return data is List ? data : [];
+  }
+
+  // --- 8. Reels (Protected) ---
+
+  Future<List<dynamic>> getReels() async {
+    final url = Uri.parse('$baseUrl/reels');
+    final response = await http.get(url, headers: await _getHeaders(isAuth: true));
+    final data = _handleResponse(response);
+    if (data is Map) return data['data'] ?? [];
+    return data is List ? data : [];
+  }
+
+  Future<Map<String, dynamic>> toggleReelLike(String reelId) async {
+    final url = Uri.parse('$baseUrl/reels/$reelId/like');
+    final response = await http.post(url, headers: await _getHeaders(isAuth: true));
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> toggleReelSave(String reelId) async {
+    final url = Uri.parse('$baseUrl/reels/$reelId/save');
+    final response = await http.post(url, headers: await _getHeaders(isAuth: true));
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> shareReel(String reelId) async {
+    final url = Uri.parse('$baseUrl/reels/$reelId/share');
+    final response = await http.post(url, headers: await _getHeaders(isAuth: true));
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> recordReelView(
+      String reelId, int watchDurationMs,
+      {bool isCompleted = false}) async {
+    final url = Uri.parse('$baseUrl/reels/$reelId/view');
+    final response = await http.post(
+      url,
+      headers: await _getHeaders(isAuth: true),
+      body: json.encode({
+        'watch_duration_ms': watchDurationMs,
+        'is_completed': isCompleted,
+      }),
+    );
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<Map<String, dynamic>> recordLearnView(
+      String videoId, int watchDurationMs,
+      {bool isCompleted = false}) async {
+    final url = Uri.parse('$baseUrl/learn/$videoId/view');
+    final response = await http.post(
+      url,
+      headers: await _getHeaders(isAuth: true),
+      body: json.encode({
+        'watch_duration_ms': watchDurationMs,
+        'is_completed': isCompleted,
+      }),
+    );
+    final data = _handleResponse(response);
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<List<dynamic>> getReelComments(String reelId) async {
+    final url = Uri.parse('$baseUrl/reels/$reelId/comments');
+    final response = await http.get(url, headers: await _getHeaders(isAuth: true));
+    final data = _handleResponse(response);
+    if (data is Map) return data['data'] ?? [];
+    return data is List ? data : [];
+  }
+
+  Future<dynamic> addReelComment(String reelId, String body) async {
+    final url = Uri.parse('$baseUrl/reels/$reelId/comments');
+    final response = await http.post(
+      url,
+      headers: await _getHeaders(isAuth: true),
+      body: json.encode({'body': body}),
+    );
+    final data = _handleResponse(response);
+    if (data is Map) return data['data'] ?? data;
+    return data;
+  }
+
+  // --- 9. Plans & Data (Public) ---
   
   Future<List<dynamic>> getPlans() async {
     final url = Uri.parse('$baseUrl/plans');

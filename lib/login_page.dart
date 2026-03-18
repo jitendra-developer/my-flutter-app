@@ -39,7 +39,7 @@ class _AuthHubPageState extends State<AuthHubPage> {
                     borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
+                        color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -179,6 +179,7 @@ class _AuthHubPageState extends State<AuthHubPage> {
               final apiService = ApiService();
               if (await apiService.hasToken()) {
                  developer.log('Google login confirmed, navigating to chat');
+                 if (!mounted) return;
                  Provider.of<ChatProvider>(context, listen: false).initializeAfterAuth();
                  context.go('/chat');
               }
@@ -192,6 +193,7 @@ class _AuthHubPageState extends State<AuthHubPage> {
           }
         } catch (e) {
           developer.log('$type Sign-In error detail: $e', error: e);
+          if (!mounted) return;
           showFeedback(
             context,
             e.toString().replaceAll('Exception: ', ''),

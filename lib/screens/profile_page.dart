@@ -229,7 +229,7 @@ class _ProfilePageState extends State<ProfilePage> {
       // Backend may return the stored avatar URL after processing
       final updatedAvatar = result['avatar']?.toString() ??
           result['profile_photo_url']?.toString() ??
-          (base64Avatar != null ? base64Avatar : _avatarUrl);
+          (base64Avatar ?? _avatarUrl);
       final updatedEmail = result['email']?.toString() ?? _email;
 
       await saveProfileCache(name, updatedEmail, updatedAvatar);

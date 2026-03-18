@@ -18,7 +18,9 @@
       "Bash(cmd.exe /c \"start cmd /k \"\"cd /d C:\\\\Users\\\\HP\\\\StudioProjects\\\\my-flutter-app && flutter run -d emulator-5554\"\"\")",
       "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\HP\\\\StudioProjects\\\\my-flutter-app && flutter run -d emulator-5554\")",
       "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\HP\\\\StudioProjects\\\\my-flutter-app && flutter run -d emulator-5556\")",
-      "Bash(flutter run:*)"
+      "Bash(flutter run:*)",
+      "Bash(flutter pub:*)",
+      "Bash(flutter analyze:*)"
     ]
   }
 }

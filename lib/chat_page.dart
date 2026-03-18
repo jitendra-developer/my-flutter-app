@@ -14,15 +14,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:myapp/services/api_service.dart';
 import 'package:myapp/screens/profile_page.dart';
+import 'package:myapp/screens/learn_page.dart';
 import 'chat_provider.dart';
 import 'history_page.dart';
 import 'screens/pre_prompts_page.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 
 class ChatPage extends StatefulWidget {
@@ -32,7 +30,7 @@ class ChatPage extends StatefulWidget {
   State<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends State<ChatPage> {
+class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   final ApiService _apiService = ApiService();
   String _userName = 'User Name';
   String _userInitials = 'U';
@@ -41,17 +39,41 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUserProfile();
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Stop mic + TTS when the app is sent to the background or phone lock screen.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      final cp = Provider.of<ChatProvider>(context, listen: false);
+      if (cp.isContinuousVoiceMode) {
+        cp.setContinuousVoiceMode(false);
+        ChatInputField.globalKey.currentState?.stopListening();
+      }
+      cp.stopSpeaking();
+    }
+  }
+
+  @override
   void deactivate() {
-    // Stop voice mode immediately whenever the user navigates away from chat
+    // Stop voice mode immediately whenever the user navigates away from chat.
     final cp = Provider.of<ChatProvider>(context, listen: false);
     if (cp.isContinuousVoiceMode) {
       cp.setContinuousVoiceMode(false);
       ChatInputField.globalKey.currentState?.stopListening();
     }
+    // Always stop TTS — regardless of voice mode — so the AI never speaks
+    // on pages other than the chat screen.
+    cp.stopSpeaking();
     super.deactivate();
   }
 
@@ -115,13 +137,24 @@ class _ChatPageState extends State<ChatPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.list_alt, color: Colors.white),
-              title: Text(chatProvider.l10n.translate('pre_prompts'), style: const TextStyle(color: Colors.white, fontSize: 16)),
+              leading: const Icon(Icons.dynamic_feed_outlined, color: Colors.white),
+              title: const Text('Feed', style: TextStyle(color: Colors.white, fontSize: 16)),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const PrePromptsPage()),
+                  MaterialPageRoute(builder: (context) => const FeedPage()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.school_outlined, color: Colors.white),
+              title: const Text('Learn', style: TextStyle(color: Colors.white, fontSize: 16)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LearnPage()),
                 );
               },
             ),
@@ -289,7 +322,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 class _EmptyChatState extends StatefulWidget {
-  const _EmptyChatState({super.key});
+  const _EmptyChatState();
   @override
   _EmptyChatStateState createState() => _EmptyChatStateState();
 }
@@ -307,24 +340,93 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
     final chatProvider = Provider.of<ChatProvider>(context);
     final l10n = chatProvider.l10n;
     final isVoiceMode = chatProvider.isContinuousVoiceMode;
+
+    if (isVoiceMode) {
+      // ── Listening state ──────────────────────────────────────────────────
+      return SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Image.asset('assets/images/logo.png', height: 80),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              l10n.translate('generate_better_prompts'),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.translate('describe_prompts_subtitle'),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16,
+                color: const Color(0xFF8F8F99),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 48),
+            Center(child: SpinKitPulse(color: const Color(0xFF4A60D4), size: 110)),
+            const SizedBox(height: 32),
+            Text(
+              'Listening...',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Speak to start your conversation',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFF8F8F99), fontSize: 15, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Tap the stop button below to cancel',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFF8F8F99).withValues(alpha: 0.6), fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── Normal welcome state ───────────────────────────────────────────────
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: Container(
-              width: 100, height: 100,
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [Colors.deepPurple.withOpacity(0.4), Colors.transparent],
-                  radius: 0.8,
-                ),
-              ),
-              child: const Icon(Icons.bolt, size: 80, color: Colors.amber),
+          // ── Try prompts (top) ──────────────────────────────────────────
+          Text(
+            l10n.translate('try_prompts'),
+            style: GoogleFonts.plusJakartaSans(
+              color: const Color(0xFF8F8F99),
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
             ),
           ),
+          const SizedBox(height: 16),
+          _buildTryPrompt(context, l10n.translate('try_prompt_1')),
+          _buildTryPrompt(context, l10n.translate('try_prompt_2')),
+          _buildTryPrompt(context, l10n.translate('try_prompt_3')),
+          _buildTryPrompt(context, l10n.translate('try_prompt_4')),
+
+          const SizedBox(height: 32),
+
+          // ── App icon ───────────────────────────────────────────────────
+          Center(child: Image.asset('assets/images/logo.png', height: 80)),
           const SizedBox(height: 24),
+
+          // ── Heading + subtitle ─────────────────────────────────────────
           Text(
             l10n.translate('generate_better_prompts'),
             textAlign: TextAlign.center,
@@ -345,224 +447,103 @@ class _EmptyChatStateState extends State<_EmptyChatState> {
             ),
           ),
 
-          if (isVoiceMode) ...[
-            // ── Listening state ─────────────────────────────────────────────
-            const SizedBox(height: 48),
-            Center(
-              child: SpinKitPulse(
-                color: const Color(0xFF4A60D4),
-                size: 110,
-              ),
+          const SizedBox(height: 32),
+
+          // ── Input box ──────────────────────────────────────────────────
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C24),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white10),
             ),
-            const SizedBox(height: 32),
-            Text(
-              'Listening...',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+            child: TextField(
+              controller: _promptController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: l10n.translate('describe_placeholder'),
+                hintStyle: const TextStyle(color: Color(0xFF8F8F99)),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF8F8F99)),
+                border: InputBorder.none,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               ),
+              onSubmitted: (text) => _sendPrompt(context, text),
             ),
-            const SizedBox(height: 10),
-            Text(
-              'Speak to start your conversation',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF8F8F99),
-                fontSize: 15,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Tap the stop button below to cancel',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF8F8F99).withOpacity(0.6),
-                fontSize: 13,
-              ),
-            ),
-          ] else ...[
-            // ── Normal welcome state ────────────────────────────────────────
-            const SizedBox(height: 32),
-            Container(
+          ),
+          const SizedBox(height: 16),
+
+          // ── Generate button ────────────────────────────────────────────
+          GestureDetector(
+            onTap: () => _sendPrompt(context, _promptController.text),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1C24),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: TextField(
-                controller: _promptController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: l10n.translate('describe_placeholder'),
-                  hintStyle: const TextStyle(color: Color(0xFF8F8F99)),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF8F8F99)),
-                  border: InputBorder.none,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF3B2E7E), Color(0xFF4A60D4)],
                 ),
-                onSubmitted: (text) => _sendPrompt(context, text),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Text(
+                  l10n.translate('generate_prompt'),
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: () => _sendPrompt(context, _promptController.text),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF3B2E7E), Color(0xFF4A60D4)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Text(
-                    l10n.translate('generate_prompt'),
+          ),
+          const SizedBox(height: 16),
+
+          // ── "or" divider ───────────────────────────────────────────────
+          Row(
+            children: [
+              const Expanded(child: Divider(color: Colors.white10, thickness: 1)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text('or',
                     style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white,
+                        color: const Color(0xFF8F8F99), fontSize: 13)),
+              ),
+              const Expanded(child: Divider(color: Colors.white10, thickness: 1)),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ── Start with Voice ───────────────────────────────────────────
+          GestureDetector(
+            onTap: () {
+              final provider = Provider.of<ChatProvider>(context, listen: false);
+              provider.setContinuousVoiceMode(true);
+              ChatInputField.globalKey.currentState?.startListening();
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF4A60D4), width: 1.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.mic_none_rounded,
+                      color: Color(0xFF4A60D4), size: 22),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Start with Voice',
+                    style: GoogleFonts.plusJakartaSans(
+                      color: const Color(0xFF4A60D4),
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
+                ],
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // ── "or" divider ──────────────────────────────────────────────
-            Row(
-              children: [
-                const Expanded(child: Divider(color: Colors.white10, thickness: 1)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    'or',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF8F8F99),
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                const Expanded(child: Divider(color: Colors.white10, thickness: 1)),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // ── Voice mode button ─────────────────────────────────────────
-            GestureDetector(
-              onTap: () {
-                final provider =
-                    Provider.of<ChatProvider>(context, listen: false);
-                provider.setContinuousVoiceMode(true);
-                ChatInputField.globalKey.currentState?.startListening();
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(16),
-                  border:
-                      Border.all(color: const Color(0xFF4A60D4), width: 1.5),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.mic_none_rounded,
-                        color: Color(0xFF4A60D4), size: 22),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Start with Voice',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: const Color(0xFF4A60D4),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            Text(
-              l10n.translate('prompt_types'),
-              style: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF8F8F99),
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 16),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final crossAxisCount = width > 600 ? 4 : 2;
-                final aspectRatio = width > 600 ? 4.0 : 3.0;
-                return GridView.count(
-                  crossAxisCount: crossAxisCount,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: aspectRatio,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  children: [
-                    _buildTypeCard(Icons.image, 'Image AI', Colors.blueAccent),
-                    _buildTypeCard(Icons.chat, 'ChatGPT', Colors.tealAccent),
-                    _buildTypeCard(Icons.campaign,
-                        l10n.translate('marketing'), Colors.purpleAccent),
-                    _buildTypeCard(Icons.code,
-                        l10n.translate('coding'), Colors.lightBlueAccent),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 32),
-            Text(
-              l10n.translate('try_prompts'),
-              style: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF8F8F99),
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildTryPrompt(context, l10n.translate('try_prompt_1')),
-            _buildTryPrompt(context, l10n.translate('try_prompt_2')),
-            _buildTryPrompt(context, l10n.translate('try_prompt_3')),
-            _buildTryPrompt(context, l10n.translate('try_prompt_4')),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTypeCard(IconData icon, String title, Color iconColor) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1C24),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: iconColor, size: 18),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              title,
-              style: GoogleFonts.plusJakartaSans(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-              overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(height: 32),
         ],
       ),
     );
@@ -786,7 +767,7 @@ class MessageBubble extends StatelessWidget {
                               color: Colors.white54,
                             ),
                             onPressed: () {
-                              Share.share(message.text);
+                              SharePlus.instance.share(ShareParams(text: message.text));
                             },
                           ),
                           if (isLast &&
@@ -820,6 +801,7 @@ class MessageBubble extends StatelessWidget {
 
 class ChatInputField extends StatefulWidget {
   const ChatInputField({super.key});
+  // ignore: library_private_types_in_public_api
   static final GlobalKey<_ChatInputFieldState> globalKey =
       GlobalKey<_ChatInputFieldState>();
 
@@ -836,6 +818,11 @@ class _ChatInputFieldState extends State<ChatInputField> {
   String? _selectedImagePath;
   String? _selectedDocumentPath;
   String? _selectedDocumentName;
+
+  // Timestamp of the last _speechToText.listen() call.
+  // Used to ignore spurious 'done'/'notListening' events that some Android
+  // devices fire within the first few hundred milliseconds of a new session.
+  DateTime? _listenStartTime;
 
   void setText(String text) {
     _controller.text = text;
@@ -866,6 +853,15 @@ class _ChatInputFieldState extends State<ChatInputField> {
       final result = await _speechToText.initialize(
         onStatus: (status) {
           if (status == 'done' || status == 'notListening') {
+            // Guard: some Android devices fire a spurious 'done'/'notListening'
+            // within milliseconds of listen() starting (before the mic is ready).
+            // Ignore any such event that arrives within 500 ms of the last
+            // listen() call so we don't stop the session before it has begun.
+            final start = _listenStartTime;
+            if (start != null &&
+                DateTime.now().difference(start).inMilliseconds < 500) {
+              return;
+            }
             _onSpeechEnd();
           }
         },
@@ -1003,6 +999,9 @@ class _ChatInputFieldState extends State<ChatInputField> {
       });
     }
 
+    // Stamp the start time BEFORE listen() so the onStatus guard is active
+    // from the very first callback the STT engine fires.
+    _listenStartTime = DateTime.now();
     _speechToText.listen(
       onResult: (result) {
         if (mounted) {

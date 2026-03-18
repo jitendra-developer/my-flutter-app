@@ -347,6 +347,15 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Stops TTS audio immediately without cancelling the AI text stream.
+  /// Call this whenever the user navigates away from the chat page.
+  void stopSpeaking() {
+    _ttsQueue.clear();
+    _flutterTts.stop();
+    _isSpeaking = false;
+    _isProcessingQueue = false;
+  }
+
   // Builds the list of messages to be sent to the API
   List<Map<String, dynamic>> _buildMessageHistory({bool forVoice = false}) {
     final List<Map<String, dynamic>> apiMessages = [];
@@ -696,8 +705,9 @@ class ChatProvider with ChangeNotifier {
 
     // Find the last user message to resend
     final lastUserMessageIndex = _messages.lastIndexWhere((m) => m.isUser);
-    if (lastUserMessageIndex == -1)
+    if (lastUserMessageIndex == -1) {
       return; // No user message to regenerate from
+    }
 
     // Remove all AI messages that came after the last user message
     _messages.removeRange(lastUserMessageIndex + 1, _messages.length);

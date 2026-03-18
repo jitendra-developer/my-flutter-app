@@ -1,7 +1,6 @@
 import 'settings_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/utils/app_localization.dart';
 import 'dart:developer' as developer;
 
@@ -205,7 +204,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
          color: Colors.white,
          boxShadow: [
            BoxShadow(
-             color: Colors.black.withOpacity(0.4),
+             color: Colors.black.withValues(alpha: 0.4),
              blurRadius: 20,
              offset: const Offset(0, 10),
            ),

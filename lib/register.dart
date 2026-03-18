@@ -304,6 +304,7 @@ class _RegisterPageState extends State<RegisterPage> {
               final apiService = ApiService();
               if (await apiService.hasToken()) {
                  developer.log('Google login confirmed, navigating to chat');
+                 if (!mounted) return;
                  Provider.of<ChatProvider>(context, listen: false).initializeAfterAuth();
                  context.go('/chat');
               }
@@ -317,6 +318,7 @@ class _RegisterPageState extends State<RegisterPage> {
           }
         } catch (e) {
           developer.log('$type Sign-In failed: $e', error: e);
+          if (!mounted) return;
           showFeedback(
             context,
             '$type Sign-In failed. Please try again.',

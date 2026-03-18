@@ -23,7 +23,6 @@ class LanguageSelectionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chatProvider = Provider.of<ChatProvider>(context);
-    final currentLanguage = chatProvider.appLanguage;
 
     return Scaffold(
       backgroundColor: const Color(0xFF13131A),

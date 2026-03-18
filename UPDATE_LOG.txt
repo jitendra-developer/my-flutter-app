@@ -424,6 +424,55 @@ IMPROVEMENTS:
     drawer navigation, back gestures, etc.).
 
 --------------------------------------------------------------------------------
+[BUILD 2.6.0] — Reels & Learn: Comments Profile, Search, In-App Player, Backend Sync
+Date: 2026-03-18
+--------------------------------------------------------------------------------
+NEW FEATURES:
+  - Comments now show the logged-in user's real profile photo and display name
+    (same image and name set in Profile Settings). Uses SharedPreferences cache
+    so the correct identity appears without an extra API call. Any profile change
+    is reflected in all comments on the next sheet open.
+  - Saved Reels button moved from the AppBar into a circular icon button sitting
+    directly next to the new search bar on the Reels page — one tap toggles the
+    Saved view; button turns blue when active.
+  - Search bar added to the Reels feed page: real-time filtering by title and
+    hashtags/keywords found in reel descriptions. Shows a "No results / Clear
+    Search" state when nothing matches.
+  - Search bar added to the Learn page: real-time filtering by title and
+    description text (including hashtags). Works across all category tabs.
+  - Learn page videos now play in-app using the YouTube player — tapping a card
+    opens a full-screen player inside the app instead of launching an external
+    browser or YouTube app. Direct MP4/HLS URLs also play in-app via VideoPlayer.
+    Non-YouTube, non-direct URLs fall back to the external launcher.
+
+IMPROVEMENTS:
+  - Profile changes (name, avatar) are automatically reflected everywhere the
+    user's identity appears: sidebar, comments input, and any newly opened
+    comments sheet — no app restart required.
+  - Share button on the Reel player now calls POST /api/reels/{id}/share,
+    displays the live shares_count returned by the server, and turns blue once
+    the current user has shared. URL is still copied to clipboard simultaneously.
+  - Like and Save actions now sync with server-confirmed counts from the API
+    response (liked/likes_count, saved/saves_count) instead of relying solely
+    on the optimistic local delta, preventing count drift on retries or race
+    conditions.
+  - View tracking added to the Reel player: watch time is measured per reel and
+    posted to POST /api/reels/{id}/view (with watch_duration_ms and is_completed)
+    automatically on page swipe, back navigation, and page dispose.
+  - View tracking added to the Learn video player: watch duration is measured
+    from player open to close and posted to POST /api/learn/{id}/view on dispose,
+    with is_completed derived from the video position.
+
+API CHANGES (api_service.dart):
+  - toggleReelLike() now returns Map<String, dynamic> with server-confirmed
+    { liked, likes_count } instead of void.
+  - toggleReelSave() now returns Map<String, dynamic> with server-confirmed
+    { saved, saves_count } instead of void.
+  - New: shareReel(reelId) — POST /api/reels/{id}/share → { shared, shares_count }
+  - New: recordReelView(reelId, watchDurationMs, {isCompleted}) — POST /api/reels/{id}/view
+  - New: recordLearnView(videoId, watchDurationMs, {isCompleted}) — POST /api/learn/{id}/view
+
+--------------------------------------------------------------------------------
 [TEMPLATE FOR NEXT BUILD — copy and fill in]
 --------------------------------------------------------------------------------
 [BUILD X.X.X] — <Short Title>
