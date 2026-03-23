@@ -678,6 +678,24 @@ class MessageBubble extends StatelessWidget {
                                   File(message.imagePath!),
                                   width: 200,
                                   fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: 200,
+                                      height: 100,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white10,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.broken_image_outlined, color: Colors.white38, size: 32),
+                                          SizedBox(height: 4),
+                                          Text('Image unavailable', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                                        ],
+                                      ),
+                                    );
+                                  },
                                 ),
                         ),
                       ),
@@ -1120,7 +1138,7 @@ class _ChatInputFieldState extends State<ChatInputField> {
                       onPressed: () async {
                         var status = await Permission.photos.status;
                         if (status.isPermanentlyDenied) {
-                           openAppSettings();
+                           await openAppSettings();
                            return;
                         }
                         if (!status.isGranted) {

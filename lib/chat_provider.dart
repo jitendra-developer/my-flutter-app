@@ -428,20 +428,34 @@ class ChatProvider with ChangeNotifier {
     });
 
     apiMessages.addAll(_messages.map((message) {
-      String finalContent = message.text;
+      final String textContent = message.text;
 
-      // Note: Backend might need specific format for base64 images, 
-      // but assuming standard text content for now per docs. 
-      // If image extraction is needed, append it if valid.
-      if (message.imagePath != null && message.imagePath!.isNotEmpty) {
-        final bytes = File(message.imagePath!).readAsBytesSync();
-        final base64Image = base64Encode(bytes);
-        finalContent += "\n\n[Attached Image (Base64): data:image/jpeg;base64,$base64Image]";
+      // For user messages with a local image file, send using OpenAI Vision format
+      if (message.isUser && message.imagePath != null && message.imagePath!.isNotEmpty) {
+        try {
+          final imageFile = File(message.imagePath!);
+          if (imageFile.existsSync()) {
+            final bytes = imageFile.readAsBytesSync();
+            final base64Image = base64Encode(bytes);
+            return {
+              'role': 'user',
+              'content': [
+                {'type': 'text', 'text': textContent},
+                {
+                  'type': 'image_url',
+                  'image_url': {'url': 'data:image/jpeg;base64,$base64Image'}
+                },
+              ],
+            };
+          }
+        } catch (e) {
+          developer.log('Failed to read image file for API: $e', name: 'ChatProvider');
+        }
       }
 
       return {
         'role': message.isUser ? 'user' : 'assistant',
-        'content': finalContent,
+        'content': textContent,
       };
     }));
 
@@ -639,7 +653,8 @@ class ChatProvider with ChangeNotifier {
             _messages.removeAt(aiMessageIndex);
             notifyListeners();
           }
-          return; // skip save & title generation
+          _saveChats(); // persist the user message that was sent
+          return; // skip title generation
         }
 
         // ── TTS for voice mode ────────────────────────────────────────────
@@ -651,7 +666,7 @@ class ChatProvider with ChangeNotifier {
               _ttsQueue.add(part.trim());
             }
           }
-          _processTtsQueue();
+          await _processTtsQueue();
         }
       }
 
@@ -668,8 +683,15 @@ class ChatProvider with ChangeNotifier {
         name: 'ChatProvider',
       );
       if (aiMessageIndex < _messages.length) {
+        final errorMsg = e.toString().contains('SocketException') || e.toString().contains('connection')
+            ? 'Network error. Please check your connection and try again.'
+            : e.toString().contains('401') || e.toString().contains('403')
+                ? 'Session expired. Please log in again.'
+                : e.toString().contains('timeout') || e.toString().contains('TimeoutException')
+                    ? 'Request timed out. Please try again.'
+                    : 'Something went wrong. Please try again.';
         _messages[aiMessageIndex] = Message(
-          text: 'Error: ${e.toString()}',
+          text: errorMsg,
           isUser: false,
         );
         notifyListeners();
@@ -712,7 +734,9 @@ class ChatProvider with ChangeNotifier {
     // Remove all AI messages that came after the last user message
     _messages.removeRange(lastUserMessageIndex + 1, _messages.length);
 
-    final lastUserMessageText = _messages[lastUserMessageIndex].text;
+    final lastUserMessage = _messages[lastUserMessageIndex];
+    final lastUserMessageText = lastUserMessage.text;
+    final lastUserMessageImagePath = lastUserMessage.imagePath;
     // We are not adding the user message again, just sending it for response
     // so remove it temporarily and add it back after send
     _messages.removeAt(lastUserMessageIndex);
@@ -722,7 +746,8 @@ class ChatProvider with ChangeNotifier {
     await sendMessage(
       lastUserMessageText,
       isVoiceInput: false,
-    ); // Assume text on regen for simplicity
+      imagePath: lastUserMessageImagePath,
+    );
   }
 
   void editMessage(Message message, Function(String) onEdit) {
@@ -750,12 +775,13 @@ class ChatProvider with ChangeNotifier {
     }
 
     final textToSend = message.text;
+    final imagePathToSend = message.imagePath;
     // Remove the message itself so we can 'resend' it freshly
     _messages.removeAt(index);
     _saveChats();
     notifyListeners();
 
-    await sendMessage(textToSend, isVoiceInput: false);
+    await sendMessage(textToSend, isVoiceInput: false, imagePath: imagePathToSend);
   }
 }
 

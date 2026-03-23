@@ -20,7 +20,9 @@
       "Bash(cmd.exe /c start cmd /k \"cd /d C:\\\\Users\\\\HP\\\\StudioProjects\\\\my-flutter-app && flutter run -d emulator-5556\")",
       "Bash(flutter run:*)",
       "Bash(flutter pub:*)",
-      "Bash(flutter analyze:*)"
+      "Bash(flutter analyze:*)",
+      "Bash(grep -n \"loadProfileCache\\\\|saveProfileCache\\\\|profileInitials\" /c/Users/HP/StudioProjects/my-flutter-app/lib/*.dart)",
+      "Bash(grep -n \"class FeedPage\" /c/Users/HP/StudioProjects/my-flutter-app/lib/*.dart)"
     ]
   }
 }
