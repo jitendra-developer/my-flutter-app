@@ -205,7 +205,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Vakya AI',
+      title: 'Vakya Pro',
       theme: ThemeData.dark().copyWith(
         primaryColor: Colors.deepPurple,
         scaffoldBackgroundColor: const Color(0xFF121212),
@@ -215,6 +215,16 @@ class _MyAppState extends State<MyApp> {
           error: Colors.redAccent,
         ),
       ),
+      builder: (context, child) {
+        return Container(
+          color: const Color(0xFF121212), // Background for the pillarboxes on wide screens (matches scaffoldBackgroundColor)
+          alignment: Alignment.center,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: ClipRect(child: child),
+          ),
+        );
+      },
       routerConfig: _router,
     );
   }
